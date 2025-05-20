@@ -517,11 +517,11 @@ def obter_percentual_crescimento_meta(filial):
         conn.close()
 
 def obter_vendas_por_mes_e_filial(mes_referencia, filial_selecionada):
-    nomes_para_numeros = {
-        "Janeiro": "01", "Fevereiro": "02", "Março": "03", "Abril": "04",
-        "Maio": "05", "Junho": "06", "Julho": "07", "Agosto": "08",
-        "Setembro": "09", "Outubro": "10", "Novembro": "11", "Dezembro": "12"
-    }
+    mes_referencia = [
+        "Janeiro", "Fevereiro", "Março", "Abril",
+        "Maio", "Junho", "Julho", "Agosto",
+        "Setembro", "Outubro", "Novembro", "Dezembro"
+    ]
 
     if not (mes_referencia and filial_selecionada):
         return []
