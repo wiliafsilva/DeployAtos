@@ -464,23 +464,23 @@ def paginaatos():
                 ),
             )
 
-    st.subheader("📍 Mapa das filiais - Vendas Acumuladas Mês")
-    st.plotly_chart(fig_mapa, use_container_width=True)
+            st.subheader("📍 Mapa das filiais - Vendas Acumuladas Mês")
+            st.plotly_chart(fig_mapa, use_container_width=True)
 
-    pagina_principal()
-    else:
+            pagina_principal()
+            else:
 
-        def pagina_meses_anterior():
-            st.markdown(
-                """
-                <style>
-                [data-testid="stSidebar"] {
-                    background-color: #800000;
-                }
-                </style>
-                """,
-                unsafe_allow_html=True,
-            )
+            def pagina_meses_anterior():
+                st.markdown(
+                    """
+                    <style>
+                    [data-testid="stSidebar"] {
+                        background-color: #800000;
+                    }
+                    </style>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
             st.sidebar.header("Filtros")
             filiais = consultaSQL.obter_nmfilial()
