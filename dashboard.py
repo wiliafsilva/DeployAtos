@@ -11,6 +11,14 @@ from inspect import getmembers, isfunction
 from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime, timedelta
 
+                def safe_float(value):
+                    if value is None:
+                        return 0.0
+                    try:
+                        return float(value)
+                    except (ValueError, TypeError):
+                        return 0.0
+
 
 def verificar_autenticacao():
     """Verifica se o usuário está autenticado"""
@@ -118,13 +126,6 @@ def paginaatos():
                 acumulo_de_vendas,
                 filial_selecionada,
             ):
-                def safe_float(value):
-                    if value is None:
-                        return 0.0
-                    try:
-                        return float(value)
-                    except (ValueError, TypeError):
-                        return 0.0
 
             meta_mes = safe_float(meta_mes)
             previsao = safe_float(previsao)
