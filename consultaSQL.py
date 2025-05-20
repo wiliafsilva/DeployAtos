@@ -538,25 +538,25 @@ def obter_vendas_por_mes_e_filial(mes_referencia, filial_selecionada):
         cursor = conn.cursor()
 
         for mes_nome = mes_nome.strip().capitalize()
-        nomes_para_numeros = {
-            'Janeiro': 1,
-            'Fevereiro': 2,
-            'Março': 3,
-            'Abril': 4,
-            'Maio': 5,
-            'Junho': 6,
-            'Julho': 7,
-            'Agosto': 8,
-            'Setembro': 9,
-            'Outubro': 10,
-            'Novembro': 11,
-            'Dezembro': 12
-        }
+            nomes_para_numeros = {
+                'Janeiro': 1,
+                'Fevereiro': 2,
+                'Março': 3,
+                'Abril': 4,
+                'Maio': 5,
+                'Junho': 6,
+                'Julho': 7,
+                'Agosto': 8,
+                'Setembro': 9,
+                'Outubro': 10,
+                'Novembro': 11,
+                'Dezembro': 12
+            }
 
-        mes_num = nomes_para_numeros.get(mes_nome)
+            mes_num = nomes_para_numeros.get(mes_nome)
 
-        if mes_num is None:
-            raise ValueError(f"Mês inválido recebido: '{mes_nome}'")
+            if mes_num is None:
+                raise ValueError(f"Mês inválido recebido: '{mes_nome}'")
 
             ultimo_dia = calendar.monthrange(ano_atual, mes_num)[1]
 
