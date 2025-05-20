@@ -526,12 +526,7 @@ def obter_vendas_por_mes_e_filial(mes_referencia, filial_selecionada):
     
     Returns:
         list: Lista com os dados de vendas
-    """
-    import calendar
-    from datetime import datetime
-    import pyodbc
-    from .conexao import obter_conexao
-    
+    """   
     # Lista de todos os meses
     lista_meses = [
         "Janeiro", "Fevereiro", "Março", "Abril",
