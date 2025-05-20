@@ -2,21 +2,21 @@ import mysql.connector
 import streamlit as st
 import importlib
 
-import os
 
-def conexaobanco():
+def conectarbanco():
     try:
         conn = mysql.connector.connect(
-            host=os.getenv("DB_HOST"),
-            port=int(os.getenv("DB_PORT", 3306)),
-            user=os.getenv("DB_USER"),
-            password=os.getenv("DB_PASS"),
-            database=os.getenv("DB_NAME")
+            host="localhost",
+            port=3306,
+            user="root",
+            password="dudu2305",
+            database="atoscapital"
         )
         return conn
     except mysql.connector.Error as e:
         st.error(f"Erro ao conectar ao banco de dados: {e}")
         return None
+
 
 def validacao(usr, passw):
     conn = conexaobanco()

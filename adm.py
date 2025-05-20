@@ -1,7 +1,7 @@
 import mysql.connector
 import streamlit as st
 import importlib
-import os
+
 def verificar_permissao():
     if not st.session_state.get('authenticated', False):
         st.error("Você não está autenticado!")
@@ -15,20 +15,19 @@ def verificar_permissao():
         st.session_state.page = None
         st.rerun()
 
-def conexaobanco():
+def conectarbanco():
     try:
         conn = mysql.connector.connect(
-            host=os.getenv("DB_HOST"),
-            port=int(os.getenv("DB_PORT", 3306)),
-            user=os.getenv("DB_USER"),
-            password=os.getenv("DB_PASS"),
-            database=os.getenv("DB_NAME")
+            host="localhost",
+            port=3306,
+            user="root",
+            password="dudu2305",
+            database="atoscapital"
         )
         return conn
     except mysql.connector.Error as e:
         st.error(f"Erro ao conectar ao banco de dados: {e}")
         return None
-
 
 def puxargrupos():
     conexao = conectarbanco()
