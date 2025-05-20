@@ -110,15 +110,10 @@ def main():
     if not st.session_state.authenticated:
         arealogin()
     else:
-        # Define valor padrão seguro para 'page'
-        pagina_atual = st.session_state.get("page", "adm")
+        if "page" not in st.session_state:
+            st.session_state.page = "adm"  # ou o nome da página inicial
 
-        try:
-            carregar_pagina(pagina_atual)
-        except Exception as e:
-            st.error(f"Erro ao carregar a página '{pagina_atual}': {e}")
-            st.session_state.authenticated = False
-
+        carregar_pagina(st.session_state.page)
 
 if __name__ == "__main__":
     main()
