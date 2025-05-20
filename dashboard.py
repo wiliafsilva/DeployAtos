@@ -12,8 +12,12 @@ from datetime import datetime, timedelta
 
 try:
     lc.setlocale(lc.LC_ALL, 'pt_BR.UTF-8')
+    def formatar_moeda(valor):
+        return lc.currency(valor, grouping=True, symbol=True)
 except lc.Error:
     lc.setlocale(lc.LC_ALL, '')
+    def formatar_moeda(valor):
+        return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 def verificar_autenticacao():
     """Verifica se o usuário está autenticado"""
