@@ -15,3 +15,10 @@ EXPOSE 8000
 
 # Comando de inicialização (ajuste para seu app, ex: flask ou uvicorn)
 CMD ["python", "main.py"]
+
+RUN apt-get update && apt-get install -y locales && \
+    locale-gen pt_BR.UTF-8 && \
+    update-locale LANG=pt_BR.UTF-8
+ENV LANG pt_BR.UTF-8
+ENV LANGUAGE pt_BR:pt
+ENV LC_ALL pt_BR.UTF-8
