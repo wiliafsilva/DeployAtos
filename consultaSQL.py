@@ -537,8 +537,10 @@ def obter_vendas_por_mes_e_filial(mes_referencia, filial_selecionada):
     try:
         cursor = conn.cursor()
 
-        for mes_nome in mes_referencia:
-            mes_num = int(nomes_para_numeros[mes_nome])
+        for mes_nome = mes_nome.strip().capitalize()
+            mes_num = nomes_para_numeros.get(mes_nome)
+            if mes_num is None:
+                raise ValueError(f"Mês inválido recebido: '{mes_nome}'")
             ultimo_dia = calendar.monthrange(ano_atual, mes_num)[1]
 
             # Busca para o ano atual
