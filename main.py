@@ -5,11 +5,11 @@ import importlib
 def conexaobanco():
     try:
         conn = mysql.connector.connect(
-            host="maglev.proxy.rlwy.net",
-            port=10175,
+            host="localhost",
+            port=3306,
             user="root",
-            password="DrMCLnXdmCSDqBsJSiZzXmfaIxHvMkkL",
-            database="railway"
+            password="dudu2305",
+            database="atoscapital"
         )
         return conn
     except mysql.connector.Error as e:
