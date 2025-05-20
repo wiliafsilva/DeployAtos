@@ -110,10 +110,11 @@ def main():
     if not st.session_state.authenticated:
         arealogin()
     else:
-        if "page" not in st.session_state:
-            st.session_state.page = "adm"  # ou o nome da página inicial
-
-        carregar_pagina(st.session_state.page)
+        if "page" in st.session_state:
+            if st.session_state.page == "adm":
+                carregar_pagina("adm")
+            else:
+                carregar_pagina(st.session_state.page)
 
 if __name__ == "__main__":
     main()
