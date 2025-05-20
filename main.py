@@ -5,11 +5,11 @@ import importlib
 def conexaobanco():
     try:
         conn = mysql.connector.connect(
-            host="maglev.proxy.rlwy.net",
-            port=10175,
+            host="localhost",
+            port=3306,
             user="root",
-            password="DrMCLnXdmCSDqBsJSiZzXmfaIxHvMkkL",
-            database="railway"
+            password="dudu2305",
+            database="atoscapital"
         )
         return conn
     except mysql.connector.Error as e:
@@ -110,11 +110,11 @@ def main():
     if not st.session_state.authenticated:
         arealogin()
     else:
-        if "page" in st.session_state:
-            if st.session_state.page == "adm":
-                carregar_pagina("adm")
-            else:
-                carregar_pagina(st.session_state.page)
+        if "page" not in st.session_state:
+            st.session_state.page = "adm"  # ou o nome da página inicial
+
+        carregar_pagina(st.session_state.page)
+
 
 if __name__ == "__main__":
     main()
