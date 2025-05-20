@@ -95,30 +95,36 @@ def paginaatos():
             vendas_mensais = consultaSQL.obter_vendas_anual_e_filial(filial_selecionada)
 
             @st.cache_data
-            def grafico_de_barras(meta_mes, previsao, acumulo_meta_ano_anterior, acumulo_de_vendas):
-                def safe_float(value):
-                    if value is None:
-                        return 0.0
-                    try:
-                        return float(value)
-                    except (ValueError, TypeError):
-                        return 0.0
+            def grafico_de_barras(meta_mes, previsao, acumulo_meta_ano_anterior, acumulo_de_vendas, filial_selecionada):
+            # Função para garantir que os valores sejam números float válidos
+            def safe_float(value):
+                if value is None:
+                    return 0.0
+            try:
+                return float(value)
+            except (ValueError, TypeError):
+                return 0.0
 
-                meta_mes = safe_float(meta_mes)
-                previsao = safe_float(previsao)
-                acumulo_meta_ano_anterior = safe_float(acumulo_meta_ano_anterior)
-                acumulo_de_vendas = safe_float(acumulo_de_vendas)
+            # Convertendo os valores de entrada para float seguros
+            meta_mes = safe_float(meta_mes)
+            previsao = safe_float(previsao)
+            acumulo_meta_ano_anterior = safe_float(acumulo_meta_ano_anterior)
+            acumulo_de_vendas = safe_float(acumulo_de_vendas)
 
-                categorias = ["Meta do mês", "Previsão", "Acumulado meta", "Acumulado Vendas"]
-                valores = [meta_mes, previsao, acumulo_meta_ano_anterior, acumulo_de_vendas]
-                cores = ["darkgray", "darkblue", "darkred", "white"]
+            # Categorias e cores
+            categorias = ["Meta do mês", "Previsão", "Acumulado meta", "Acumulado Vendas"]
+            valores = [meta_mes, previsao, acumulo_meta_ano_anterior, acumulo_de_vendas]
+            cores = ["darkgray", "darkblue", "darkred", "white"]
 
-                fig = go.Figure()
-                
-                texto_formatado = [f"R$ {lc.currency(v, grouping=True, symbol=False)}" for v in valores]
-                hover_texto = [f"{cat}<br>R$ {lc.currency(v, grouping=True, symbol=False)}" for cat, v in zip(categorias, valores)]
-                
-                fig.add_trace(go.Bar(
+            # Usando Babel para formatar os valores com a moeda (R$)
+            texto_formatado = [format_currency(v, 'BRL', locale='pt_BR') for v in valores]
+            hover_texto = [f"{cat}<br>{format_currency(v, 'BRL', locale='pt_BR')}" for cat, v in zip(categorias, valores)]
+
+            # Criando o gráfico de barras
+            fig = go.Figure()
+
+            # Adicionando a trace de barras
+            ig.add_trace(go.Bar(
                 x=categorias,
                 y=valores,
                 marker_color=cores,
@@ -126,24 +132,26 @@ def paginaatos():
                 textposition='outside',
                 hovertext=hover_texto,
                 hoverinfo='text'
-                ))
+            ))
 
-                fig.update_layout(
-                    title=f"📊 Metas e previsões da {filial_selecionada}",
-                    xaxis_title="",
-                    yaxis_title="Valor (R$)",
-                    font=dict(color="white", size=14),
-                    plot_bgcolor="rgba(0,0,0,0)",
-                    paper_bgcolor="rgba(0,0,0,0)",
-                    height=550,
-                    width=500,
-                    yaxis=dict(
-                        tickprefix="R$ ",
-                        separatethousands=True,
-                        tickformat=",."
-                    )
+            # Atualizando o layout do gráfico
+            fig.update_layout(
+                title=f"📊 Metas e previsões da {filial_selecionada}",
+                xaxis_title="",
+                yaxis_title="Valor (R$)",
+                font=dict(color="white", size=14),
+                plot_bgcolor="rgba(0,0,0,0)",
+                paper_bgcolor="rgba(0,0,0,0)",
+                height=550,
+                width=500,
+                yaxis=dict(
+                    tickprefix="R$ ",
+                    separatethousands=True,
+                    tickformat=",."
                 )
-                return fig
+            )
+
+            return fig
 
             @st.cache_data 
             def grafico_de_crescimento(percentual_crescimento_atual, percentual_crescimento_meta):
