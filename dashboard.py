@@ -3,7 +3,8 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
-from babel.numbers import format_currency as lc
+from babel.numbers import format_currency
+import plotly.graph_objects as go
 import consultaSQL
 import sys
 from inspect import getmembers, isfunction
