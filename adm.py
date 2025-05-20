@@ -15,14 +15,14 @@ def verificar_permissao():
         st.session_state.page = None
         st.rerun()
 
-def conectarbanco():
+def conexaobanco():
     try:
         conn = mysql.connector.connect(
-            host="localhost",
-            port=3306,
+            host="maglev.proxy.rlwy.net",
+            port=10175,
             user="root",
-            password="dudu2305",
-            database="atoscapital"
+            password="DrMCLnXdmCSDqBsJSiZzXmfaIxHvMkkL",
+            database="railway"
         )
         return conn
     except mysql.connector.Error as e:
