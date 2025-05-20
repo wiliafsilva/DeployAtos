@@ -124,7 +124,7 @@ def paginaatos():
                 fig = go.Figure()
                 
                 texto_formatado = [formatar_moeda(v) for v in valores]
-                hover_texto = [f"{cat}<br>R$ {lc.currency(v, grouping=True, symbol=False)}" for cat, v in zip(categorias, valores)]
+                hover_texto = [f"{cat}<br>{formatar_moeda(v)}" for cat, v in zip(categorias, valores)]
                 
                 fig.add_trace(go.Bar(
                 x=categorias,
