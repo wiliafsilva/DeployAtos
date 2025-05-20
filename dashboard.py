@@ -10,10 +10,6 @@ from inspect import getmembers, isfunction
 from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime, timedelta
 
-try:
-    lc.setlocale(lc.LC_ALL, 'pt_BR.UTF-8')
-except lc.Error:
-    lc.setlocale(lc.LC_ALL, '')
 
 def verificar_autenticacao():
     """Verifica se o usuário está autenticado"""
