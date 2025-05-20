@@ -4,6 +4,8 @@ from datetime import datetime
 from matplotlib.dates import relativedelta
 import pandas as pd
 import pyodbc
+import unicodedata
+import re  
 
 dados_empresa = (
     'DRIVER={ODBC Driver 17 for SQL Server};'
@@ -526,7 +528,26 @@ def obter_vendas_por_mes_e_filial(mes_referencia, filial_selecionada):
     
     Returns:
         list: Lista com os dados de vendas
-    """   
+    """
+    # Importação absoluta em vez de relativa
+    try:
+        from conexao import obter_conexao  # Importação absoluta
+    except ImportError:
+        # Tenta vários caminhos possíveis para importação
+        try:
+            import sys
+            import os
+            # Adiciona o diretório atual ao path
+            sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+            from conexao import obter_conexao
+        except ImportError:
+            # Se ainda falhar, tente com o caminho completo do módulo
+            try:
+                from DeployAtos.conexao import obter_conexao
+            except ImportError:
+                print("Não foi possível importar o módulo conexao. Verifique a estrutura do projeto.")
+                return []
+
     # Lista de todos os meses
     lista_meses = [
         "Janeiro", "Fevereiro", "Março", "Abril",
@@ -540,9 +561,6 @@ def obter_vendas_por_mes_e_filial(mes_referencia, filial_selecionada):
     
     # Normaliza o nome do mês para comparação e validação
     def normalizar_texto(texto):
-        import unicodedata
-        import re
-        
         # Converter para minúsculo e remover acentos
         if not isinstance(texto, str):
             return ""
@@ -656,7 +674,10 @@ def obter_vendas_por_mes_e_filial(mes_referencia, filial_selecionada):
         return []
     finally:
         if conn:
-            conn.close()
+            try:
+                conn.close()
+            except:
+                pass
 
 def obter_vendas_anual_e_filial(filial_selecionada):
     """Retorna um dicionário com o total de vendas dos últimos 12 meses para uma filial específica."""
