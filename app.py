@@ -2,14 +2,16 @@ import mysql.connector
 import streamlit as st
 import importlib
 
+import os
+
 def conexaobanco():
     try:
         conn = mysql.connector.connect(
-            host="localhost",
-            port=3306,
-            user="root",
-            password="dudu2305",
-            database="atoscapital"
+            host=os.getenv("DB_HOST"),
+            port=int(os.getenv("DB_PORT", 3306)),
+            user=os.getenv("DB_USER"),
+            password=os.getenv("DB_PASS"),
+            database=os.getenv("DB_NAME")
         )
         return conn
     except mysql.connector.Error as e:
