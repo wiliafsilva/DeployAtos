@@ -537,7 +537,8 @@ def obter_vendas_por_mes_e_filial(mes_referencia, filial_selecionada):
     try:
         cursor = conn.cursor()
 
-        for mes_nome = mes_nome.strip().capitalize()
+        for mes_nome in mes_referencia:
+            mes_nome = mes_nome.strip().capitalize()
             nomes_para_numeros = {
                 'Janeiro': 1,
                 'Fevereiro': 2,
