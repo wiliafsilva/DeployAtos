@@ -539,7 +539,7 @@ def obter_vendas_por_mes_e_filial(mes_referencia, filial_selecionada):
         return []
 
     try:
-        cursor = conn.cursor()
+        cursor = conn.cursor(dictionary=True)
 
         for mes_nome in mes_referencia:
             # Normalizar o nome do mês (remover espaços e verificar capitalização)
@@ -576,7 +576,13 @@ def obter_vendas_por_mes_e_filial(mes_referencia, filial_selecionada):
             data_fim_anterior = f"{ano_anterior}-{mes_num_str}-{calendar.monthrange(ano_anterior, mes_num)[1]}"
 
             cursor.execute(query, (mes_nome_normalizado, ano_anterior, data_inicio_anterior, data_fim_anterior, filial_selecionada))
-            resultados_totais.extend(cursor.fetchall())
+            resultados = cursor.fetchall()
+            for row in resultados:
+                if all(key in row for key in ['vlVenda', 'dtVenda']):
+                    resultados_totais.append(row)
+                else:
+                    print(f"Row com chave ausente: {row}")
+
 
         return resultados_totais
 
