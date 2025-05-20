@@ -332,15 +332,15 @@ def paginaatos():
 
             with col1:
                 st.write(f"""#### Vendas 2024: \n 
-                        R$ {lc.currency(total_vendas, grouping=True, symbol=False)}
+                        R$ {formatar_moeda(total_vendas)}
                         """)
             with col2:
                 st.write(f"""#### Acumulado 2024: \n
-                        R$ {lc.currency(acumulo_vendas_ano_anterior, grouping=True, symbol=False)}
+                        R$ {formatar_moeda(acumulo_vendas_ano_anterior)}
                         """)
             with col3:
                 st.write(f"""#### Vendas do dia: ({data_venda_dia.strftime('%d/%m/%Y') if data_venda_dia else 'Sem data'})\n
-                        R$ {lc.currency(vendas_dia_anterior, grouping=True, symbol=False)} """)
+                        {formatar_moeda(vendas_dia_anterior)} """)
 
             exibindo_grafico_de_barras = grafico_de_barras(meta_mes, previsao, acumulo_meta_ano_anterior, acumulo_de_vendas)
             st.plotly_chart(exibindo_grafico_de_barras, use_container_width=True)
