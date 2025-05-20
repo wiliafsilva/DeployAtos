@@ -11,14 +11,6 @@ from inspect import getmembers, isfunction
 from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime, timedelta
 
-                def safe_float(value):
-                    if value is None:
-                        return 0.0
-                    try:
-                        return float(value)
-                    except (ValueError, TypeError):
-                        return 0.0
-
 
 def verificar_autenticacao():
     """Verifica se o usuário está autenticado"""
@@ -47,36 +39,27 @@ def pagina_nao_encontrada():
 def paginaatos():
     verificar_autenticacao()
 
-    # Configuração da página
     st.set_page_config(page_title="Atos Capital", page_icon="📊", layout="wide")
 
-    # Barra lateral
     if "user_info" in st.session_state:
-        # Adicionar botão Voltar apenas para administradores
         if st.session_state.user_info["permissao"].lower() == "adm":
             if st.sidebar.button("⬅️ Voltar para Administração"):
                 st.session_state.page = "adm"
                 st.rerun()
 
-    # Inicializa a variável de sessão se não existir
     if "pagina" not in st.session_state:
         st.session_state["pagina"] = "principal"
 
-    # Mostra a página apropriada com base no estado
     if st.session_state["pagina"] == "principal":
 
         def pagina_principal():
-            # Início sidebar
-            st.markdown(
-                """
+            st.markdown("""
                 <style>
                 [data-testid="stSidebar"] {
                     background-color: #800000; 
                 }
                 </style>
-                """,
-                unsafe_allow_html=True,
-            )
+            """, unsafe_allow_html=True)
 
             st.sidebar.header("Filtros")
             filiais = consultaSQL.obter_nmfilial()
@@ -86,100 +69,63 @@ def paginaatos():
                 st.session_state["pagina"] = "meses_anterior"
                 st.rerun()
 
-            mes_referencia = [datetime.now().strftime("%B").capitalize()]
-
-            # Fim sidebar
-
-            # Início cabeçalho
-            left_co, cent_co, last_co = st.columns(3)
-            with cent_co:
-                st.image("logoatos.png", width=500)
+            st.image("logoatos.png", width=500)
             st.write(f"# Relatório de venda da {filial_selecionada}")
-            # Fim cabeçalho
 
-            total_vendas = consultaSQL.obter_vendas_ano_anterior(filial_selecionada)
+            # Dados
             meta_mes = consultaSQL.obter_meta_mes(filial_selecionada)
             previsao = consultaSQL.obter_previsao_vendas(filial_selecionada)
-            acumulo_vendas_ano_anterior = (
-                consultaSQL.acumulo_vendas_periodo_ano_anterior(filial_selecionada)
-            )
-            acumulo_meta_ano_anterior = consultaSQL.obter_acumulo_meta_ano_anterior(
-                filial_selecionada
-            )
+            acumulo_meta_ano_anterior = consultaSQL.obter_acumulo_meta_ano_anterior(filial_selecionada)
             acumulo_de_vendas = consultaSQL.obter_acumulo_de_vendas(filial_selecionada)
-            vendas_dia_anterior, data_venda_dia = (
-                consultaSQL.obter_ultima_venda_com_valor(filial_selecionada)
-            )
-            percentual_crescimento_atual = (
-                consultaSQL.obter_percentual_de_crescimento_atual(filial_selecionada)
-            )
-            percentual_crescimento_meta = consultaSQL.obter_percentual_crescimento_meta(
-                filial_selecionada
-            )
-            vendas_mensais = consultaSQL.obter_vendas_anual_e_filial(filial_selecionada)
+            percentual_crescimento_atual = consultaSQL.obter_percentual_de_crescimento_atual(filial_selecionada)
+            percentual_crescimento_meta = consultaSQL.obter_percentual_crescimento_meta(filial_selecionada)
 
             @st.cache_data
-            def grafico_de_barras(
-                meta_mes,
-                previsao,
-                acumulo_meta_ano_anterior,
-                acumulo_de_vendas,
-                filial_selecionada,
-            ):
+            def grafico_de_barras(meta_mes, previsao, acumulo_meta_ano_anterior, acumulo_de_vendas):
+                def safe_float(value):
+                    try:
+                        return float(value) if value is not None else 0.0
+                    except (ValueError, TypeError):
+                        return 0.0
 
-            meta_mes = safe_float(meta_mes)
-            previsao = safe_float(previsao)
-            acumulo_meta_ano_anterior = safe_float(acumulo_meta_ano_anterior)
-            acumulo_de_vendas = safe_float(acumulo_de_vendas)
+                meta_mes = safe_float(meta_mes)
+                previsao = safe_float(previsao)
+                acumulo_meta_ano_anterior = safe_float(acumulo_meta_ano_anterior)
+                acumulo_de_vendas = safe_float(acumulo_de_vendas)
 
-            categorias = [
-                "Meta do mês",
-                "Previsão",
-                "Acumulado meta",
-                "Acumulado Vendas",
-            ]
-            valores = [meta_mes, previsao, acumulo_meta_ano_anterior, acumulo_de_vendas]
-            cores = ["darkgray", "darkblue", "darkred", "white"]
+                categorias = ["Meta do mês", "Previsão", "Acumulado meta", "Acumulado Vendas"]
+                valores = [meta_mes, previsao, acumulo_meta_ano_anterior, acumulo_de_vendas]
+                cores = ["darkgray", "darkblue", "darkred", "white"]
 
-            texto_formatado = [
-                format_currency(v, "BRL", locale="pt_BR") for v in valores
-            ]
-            hover_texto = [
-                f"{cat}<br>{format_currency(v, 'BRL', locale='pt_BR')}"
-                for cat, v in zip(categorias, valores)
-            ]
+                texto_formatado = [format_currency(v, "BRL", locale="pt_BR") for v in valores]
+                hover_texto = [f"{cat}<br>{format_currency(v, 'BRL', locale='pt_BR')}" for cat, v in zip(categorias, valores)]
 
-            fig = go.Figure()
-            fig.add_trace(
-                go.Bar(
+                fig = go.Figure()
+                fig.add_trace(go.Bar(
                     x=categorias,
                     y=valores,
                     marker_color=cores,
                     text=texto_formatado,
                     textposition="outside",
                     hovertext=hover_texto,
-                    hoverinfo="text",
+                    hoverinfo="text"
+                ))
+
+                fig.update_layout(
+                    title=f"📊 Metas e previsões da {filial_selecionada}",
+                    xaxis_title="",
+                    yaxis_title="Valor (R$)",
+                    font=dict(color="white", size=14),
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    height=550,
+                    width=500,
+                    yaxis=dict(tickprefix="R$ ", separatethousands=True, tickformat=",.")
                 )
-            )
-
-            fig.update_layout(
-                title=f"📊 Metas e previsões da {filial_selecionada}",
-                xaxis_title="",
-                yaxis_title="Valor (R$)",
-                font=dict(color="white", size=14),
-                plot_bgcolor="rgba(0,0,0,0)",
-                paper_bgcolor="rgba(0,0,0,0)",
-                height=550,
-                width=500,
-                yaxis=dict(tickprefix="R$ ", separatethousands=True, tickformat=",."),
-            )
-
-            return fig
+                return fig
 
             @st.cache_data
-            def grafico_de_crescimento(
-                percentual_crescimento_atual, percentual_crescimento_meta
-            ):
+            def grafico_de_crescimento(percentual_crescimento_atual, percentual_crescimento_meta):
                 try:
                     percentual_crescimento_atual = float(percentual_crescimento_atual)
                 except (ValueError, TypeError):
@@ -190,31 +136,23 @@ def paginaatos():
                 except (ValueError, TypeError):
                     percentual_crescimento_meta = 0.0
 
-                fig = go.Figure()
-
                 categorias = ["Cresc. 2025", "Cresc. meta"]
                 valores = [percentual_crescimento_atual, percentual_crescimento_meta]
                 cores = ["green", "aqua"]
 
-                texto_formatado = [
-                    lc.format_string("%.2f", v, grouping=True) + "%" for v in valores
-                ]
-                hover_texto = [
-                    f"{cat}: {lc.format_string('%.2f', v, grouping=True)}%"
-                    for cat, v in zip(categorias, valores)
-                ]
+                texto_formatado = [f"{v:.2f}%" for v in valores]
+                hover_texto = [f"{cat}: {v:.2f}%" for cat, v in zip(categorias, valores)]
 
-                fig.add_trace(
-                    go.Bar(
-                        x=categorias,
-                        y=valores,
-                        marker_color=cores,
-                        text=texto_formatado,
-                        textposition="outside",
-                        hovertext=hover_texto,
-                        hoverinfo="text",
-                    )
-                )
+                fig = go.Figure()
+                fig.add_trace(go.Bar(
+                    x=categorias,
+                    y=valores,
+                    marker_color=cores,
+                    text=texto_formatado,
+                    textposition="outside",
+                    hovertext=hover_texto,
+                    hoverinfo="text"
+                ))
 
                 y_min = min(valores)
                 y_max = max(valores)
@@ -233,10 +171,9 @@ def paginaatos():
                     yaxis=dict(
                         range=[y_min - y_range_margin, y_max + y_range_margin],
                         zeroline=True,
-                        zerolinecolor="gray",
-                    ),
+                        zerolinecolor="gray"
+                    )
                 )
-
                 return fig
 
             @st.cache_data
