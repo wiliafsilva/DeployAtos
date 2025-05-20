@@ -12,11 +12,16 @@ from datetime import datetime, timedelta
 
 try:
     lc.setlocale(lc.LC_ALL, 'pt_BR.UTF-8')
-    def formatar_moeda(valor):
-        return lc.currency(valor, grouping=True, symbol=True)
 except lc.Error:
-    lc.setlocale(lc.LC_ALL, '')
-    def formatar_moeda(valor):
+    try:
+        lc.setlocale(lc.LC_ALL, 'Portuguese_Brazil.1252')  # Para Windows
+    except lc.Error:
+        lc.setlocale(lc.LC_ALL, '')  # Último fallback (pode causar erro de moeda)
+
+def formatar_moeda(valor):
+    try:
+        return lc.currency(valor, grouping=True, symbol=True)
+    except Exception:
         return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 def verificar_autenticacao():
