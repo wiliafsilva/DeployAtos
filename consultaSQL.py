@@ -526,10 +526,6 @@ def obter_vendas_por_mes_e_filial(mes_referencia, filial_selecionada):
     if not (mes_referencia and filial_selecionada):
         return []
 
-    # Verificar se mes_referencia é uma lista. Se não for, transformá-lo em uma lista
-    if not isinstance(mes_referencia, list):
-        mes_referencia = [mes_referencia]
-
     ano_atual = datetime.now().year
     ano_anterior = ano_atual - 1
     resultados_totais = []
@@ -539,27 +535,15 @@ def obter_vendas_por_mes_e_filial(mes_referencia, filial_selecionada):
         return []
 
     try:
-        cursor = conn.cursor(dictionary=True)
+        cursor = conn.cursor()
 
         for mes_nome in mes_referencia:
-            # Normalizar o nome do mês (remover espaços e verificar capitalização)
-            mes_nome_normalizado = mes_nome.strip().title()
-            
-            # Verificar se o mês existe no dicionário
-            if mes_nome_normalizado not in nomes_para_numeros:
-                print(f"Aviso: Mês '{mes_nome}' não encontrado no dicionário. Meses disponíveis: {list(nomes_para_numeros.keys())}")
-                continue  # Pula este mês e continua com o próximo
-            
-            # Usar o valor diretamente como string, sem converter para int
-            mes_num_str = nomes_para_numeros[mes_nome_normalizado]
-            # Converter para int apenas para cálculos do calendar
-            mes_num = int(mes_num_str)
-            
+            mes_num = int(nomes_para_numeros[mes_nome])
             ultimo_dia = calendar.monthrange(ano_atual, mes_num)[1]
 
             # Busca para o ano atual
-            data_inicio_atual = f"{ano_atual}-{mes_num_str}-01"
-            data_fim_atual = f"{ano_atual}-{mes_num_str}-{ultimo_dia}"
+            data_inicio_atual = f"{ano_atual}-{mes_num:02d}-01"
+            data_fim_atual = f"{ano_atual}-{mes_num:02d}-{ultimo_dia}"
 
             query = """
                 SELECT vlVenda, dtVenda, ? as mes_nome, ? as ano
@@ -568,32 +552,23 @@ def obter_vendas_por_mes_e_filial(mes_referencia, filial_selecionada):
                 AND nmFilial = ?
                 ORDER BY dtVenda
             """
-            cursor.execute(query, (mes_nome_normalizado, ano_atual, data_inicio_atual, data_fim_atual, filial_selecionada))
+            cursor.execute(query, (mes_nome, ano_atual, data_inicio_atual, data_fim_atual, filial_selecionada))
             resultados_totais.extend(cursor.fetchall())
 
             # Busca para o ano anterior
-            data_inicio_anterior = f"{ano_anterior}-{mes_num_str}-01"
-            data_fim_anterior = f"{ano_anterior}-{mes_num_str}-{calendar.monthrange(ano_anterior, mes_num)[1]}"
+            data_inicio_anterior = f"{ano_anterior}-{mes_num:02d}-01"
+            data_fim_anterior = f"{ano_anterior}-{mes_num:02d}-{calendar.monthrange(ano_anterior, mes_num)[1]}"
 
-            cursor.execute(query, (mes_nome_normalizado, ano_anterior, data_inicio_anterior, data_fim_anterior, filial_selecionada))
-            resultados = cursor.fetchall()
-            for row in resultados:
-                if all(key in row for key in ['vlVenda', 'dtVenda']):
-                    resultados_totais.append(row)
-                else:
-                    print(f"Row com chave ausente: {row}")
-
+            cursor.execute(query, (mes_nome, ano_anterior, data_inicio_anterior, data_fim_anterior, filial_selecionada))
+            resultados_totais.extend(cursor.fetchall())
 
         return resultados_totais
 
-    except Exception as e:
-        print(f"Erro na função obter_vendas_por_mes_e_filial: {e}")
-        import traceback
-        print(traceback.format_exc())  # Isso imprimirá a pilha completa de exceções
+    except pyodbc.Error as e:
+        print(f"Erro: {e}")
         return []
     finally:
-        if conn:
-            conn.close()
+        conn.close()
 
 def obter_vendas_anual_e_filial(filial_selecionada):
     """Retorna um dicionário com o total de vendas dos últimos 12 meses para uma filial específica."""
