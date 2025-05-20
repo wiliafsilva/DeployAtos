@@ -4,6 +4,8 @@ from datetime import datetime
 from matplotlib.dates import relativedelta
 import pandas as pd
 import pyodbc
+import unicodedata
+import re  
 
 dados_empresa = (
     'DRIVER={ODBC Driver 17 for SQL Server};'
@@ -526,7 +528,30 @@ def obter_vendas_por_mes_e_filial(mes_referencia, filial_selecionada):
     
     Returns:
         list: Lista com os dados de vendas
+<<<<<<< HEAD
     """   
+=======
+    """
+    # Importação absoluta em vez de relativa
+    try:
+        from conexao import obter_conexao  # Importação absoluta
+    except ImportError:
+        # Tenta vários caminhos possíveis para importação
+        try:
+            import sys
+            import os
+            # Adiciona o diretório atual ao path
+            sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+            from conexao import obter_conexao
+        except ImportError:
+            # Se ainda falhar, tente com o caminho completo do módulo
+            try:
+                from DeployAtos.conexao import obter_conexao
+            except ImportError:
+                print("Não foi possível importar o módulo conexao. Verifique a estrutura do projeto.")
+                return []
+
+>>>>>>> parent of 86db452 (d)
     # Lista de todos os meses
     lista_meses = [
         "Janeiro", "Fevereiro", "Março", "Abril",
@@ -537,26 +562,93 @@ def obter_vendas_por_mes_e_filial(mes_referencia, filial_selecionada):
     # Verificação inicial de parâmetros
     if not (mes_referencia and filial_selecionada):
         return []
-
+    
+    # Normaliza o nome do mês para comparação e validação
+    def normalizar_texto(texto):
+        # Converter para minúsculo e remover acentos
+        if not isinstance(texto, str):
+            return ""
+        texto = texto.lower()
+        texto = unicodedata.normalize('NFKD', texto).encode('ASCII', 'ignore').decode('ASCII')
+        texto = texto.strip().capitalize()
+        return texto
+    
+    # Dicionário para converter nomes de meses em números
+    nomes_para_numeros = {
+        'Janeiro': 1, 'Fevereiro': 2, 'Março': 3, 'Abril': 4,
+        'Maio': 5, 'Junho': 6, 'Julho': 7, 'Agosto': 8,
+        'Setembro': 9, 'Outubro': 10, 'Novembro': 11, 'Dezembro': 12
+    }
+    
+    # Dicionário adicional para formas normalizadas dos meses (sem acentos, minúsculas)
+    nomes_normalizados = {
+        'Janeiro': 'Janeiro', 'Fevereiro': 'Fevereiro', 'Marco': 'Março', 'Abril': 'Abril',
+        'Maio': 'Maio', 'Junho': 'Junho', 'Julho': 'Julho', 'Agosto': 'Agosto',
+        'Setembro': 'Setembro', 'Outubro': 'Outubro', 'Novembro': 'Novembro', 'Dezembro': 'Dezembro',
+        'Jan': 'Janeiro', 'Fev': 'Fevereiro', 'Mar': 'Março', 'Abr': 'Abril',
+        'Mai': 'Maio', 'Jun': 'Junho', 'Jul': 'Julho', 'Ago': 'Agosto',
+        'Set': 'Setembro', 'Out': 'Outubro', 'Nov': 'Novembro', 'Dez': 'Dezembro'
+    }
+    
+    # Verifica se mes_referencia é uma lista ou uma string
+    if isinstance(mes_referencia, list):
+        meses_para_consulta = mes_referencia
+    else:
+        # Se for string, tenta normalizar e encontrar o mês correspondente
+        mes_norm = normalizar_texto(mes_referencia)
+        mes_correspondente = nomes_normalizados.get(mes_norm)
+        
+        if mes_correspondente:
+            meses_para_consulta = [mes_correspondente]
+        else:
+            # Se não encontrar correspondência direta, tenta pelo primeiro caracter
+            mes_encontrado = False
+            for mes_nome in lista_meses:
+                if normalizar_texto(mes_nome).startswith(mes_norm.lower()):
+                    meses_para_consulta = [mes_nome]
+                    mes_encontrado = True
+                    break
+            
+            if not mes_encontrado:
+                # Se ainda não encontrou, usa o mês atual como fallback
+                mes_atual = lista_meses[datetime.now().month - 1]
+                print(f"Aviso: Mês inválido recebido: '{mes_referencia}'. Usando o mês atual '{mes_atual}' como padrão.")
+                meses_para_consulta = [mes_atual]
+    
     ano_atual = datetime.now().year
     ano_anterior = ano_atual - 1
     resultados_totais = []
-
+    
     conn = obter_conexao()
     if conn is None:
         return []
-
+    
     try:
         cursor = conn.cursor()
-
-        for mes_nome in mes_referencia:
-            mes_num = int(nomes_para_numeros[mes_nome])
+        
+        for mes_nome in meses_para_consulta:
+            mes_nome = mes_nome.strip()
+            mes_num = nomes_para_numeros.get(mes_nome)
+            
+            if mes_num is None:
+                # Tentar normalizar o nome do mês primeiro
+                mes_norm = normalizar_texto(mes_nome)
+                mes_correspondente = nomes_normalizados.get(mes_norm)
+                
+                if mes_correspondente:
+                    mes_num = nomes_para_numeros.get(mes_correspondente)
+                
+                if mes_num is None:
+                    # Em vez de lançar erro, vamos registrar o problema e continuar com o próximo mês
+                    print(f"Aviso: Mês inválido ignorado: '{mes_nome}'")
+                    continue
+            
             ultimo_dia = calendar.monthrange(ano_atual, mes_num)[1]
-
+            
             # Busca para o ano atual
             data_inicio_atual = f"{ano_atual}-{mes_num:02d}-01"
             data_fim_atual = f"{ano_atual}-{mes_num:02d}-{ultimo_dia}"
-
+            
             query = """
                 SELECT vlVenda, dtVenda, ? as mes_nome, ? as ano
                 FROM tbVendasDashboard
@@ -564,23 +656,32 @@ def obter_vendas_por_mes_e_filial(mes_referencia, filial_selecionada):
                 AND nmFilial = ?
                 ORDER BY dtVenda
             """
-            cursor.execute(query, (mes_nome, ano_atual, data_inicio_atual, data_fim_atual, filial_selecionada))
-            resultados_totais.extend(cursor.fetchall())
-
-            # Busca para o ano anterior
-            data_inicio_anterior = f"{ano_anterior}-{mes_num:02d}-01"
-            data_fim_anterior = f"{ano_anterior}-{mes_num:02d}-{calendar.monthrange(ano_anterior, mes_num)[1]}"
-
-            cursor.execute(query, (mes_nome, ano_anterior, data_inicio_anterior, data_fim_anterior, filial_selecionada))
-            resultados_totais.extend(cursor.fetchall())
-
+            
+            try:
+                cursor.execute(query, (mes_nome, ano_atual, data_inicio_atual, data_fim_atual, filial_selecionada))
+                resultados_totais.extend(cursor.fetchall())
+                
+                # Busca para o ano anterior
+                data_inicio_anterior = f"{ano_anterior}-{mes_num:02d}-01"
+                data_fim_anterior = f"{ano_anterior}-{mes_num:02d}-{calendar.monthrange(ano_anterior, mes_num)[1]}"
+                
+                cursor.execute(query, (mes_nome, ano_anterior, data_inicio_anterior, data_fim_anterior, filial_selecionada))
+                resultados_totais.extend(cursor.fetchall())
+            except pyodbc.Error as e:
+                print(f"Erro ao executar consulta para mês {mes_nome}: {e}")
+                continue
+        
         return resultados_totais
-
+        
     except pyodbc.Error as e:
         print(f"Erro: {e}")
         return []
     finally:
-        conn.close()
+        if conn:
+            try:
+                conn.close()
+            except:
+                pass
 
 def obter_vendas_anual_e_filial(filial_selecionada):
     """Retorna um dicionário com o total de vendas dos últimos 12 meses para uma filial específica."""
