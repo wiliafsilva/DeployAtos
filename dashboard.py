@@ -10,18 +10,14 @@ from inspect import getmembers, isfunction
 from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime, timedelta
 
-# Configuração da página DEVE SER A PRIMEIRA COISA
-st.set_page_config(page_title="Atos Capital", page_icon="📊", layout="wide")
+                def safe_float(value):
+                    if value is None:
+                        return 0.0
+                    try:
+                        return float(value)
+                    except (ValueError, TypeError):
+                        return 0.0
 
-# Configuração do locale com fallback seguro
-try:
-    lc.setlocale(lc.LC_ALL, 'pt_BR.UTF-8')
-except lc.Error:
-    try:
-        lc.setlocale(lc.LC_ALL, 'pt_BR')
-    except lc.Error:
-        lc.setlocale(lc.LC_ALL, 'C')  # Fallback para locale padrão
-        st.warning("Locale pt_BR não disponível. Usando configurações padrão.")
 
 def verificar_autenticacao():
     """Verifica se o usuário está autenticado"""
@@ -109,14 +105,13 @@ def paginaatos():
             vendas_mensais = consultaSQL.obter_vendas_anual_e_filial(filial_selecionada)
 
             @st.cache_data
-            def grafico_de_barras(meta_mes, previsao, acumulo_meta_ano_anterior, acumulo_de_vendas):
-                def safe_float(value):
-                    if value is None:
-                        return 0.0
-                    try:
-                        return float(value)
-                    except (ValueError, TypeError):
-                        return 0.0
+            def grafico_de_barras(
+                meta_mes,
+                previsao,
+                acumulo_meta_ano_anterior,
+                acumulo_de_vendas,
+                filial_selecionada,
+            ):
 
                 meta_mes = safe_float(meta_mes)
                 previsao = safe_float(previsao)
