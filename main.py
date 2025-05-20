@@ -2,8 +2,7 @@ import mysql.connector
 import streamlit as st
 import importlib
 
-
-def conectarbanco():
+def conexaobanco():
     try:
         conn = mysql.connector.connect(
             host="localhost",
@@ -16,7 +15,6 @@ def conectarbanco():
     except mysql.connector.Error as e:
         st.error(f"Erro ao conectar ao banco de dados: {e}")
         return None
-
 
 def validacao(usr, passw):
     conn = conexaobanco()
