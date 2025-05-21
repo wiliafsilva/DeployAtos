@@ -172,8 +172,8 @@ def paginaatos():
                 valores = [percentual_crescimento_atual, percentual_crescimento_meta]
                 cores = ["green", "aqua"]
 
-                texto_formatado = [lc.format_string('%.2f', v, grouping=True) + "%" for v in valores]
-                hover_texto = [f"{cat}: {lc.format_string('%.2f', v, grouping=True)}%" for cat, v in zip(categorias, valores)]
+                texto_formatado = [formatar_moeda(v) for v in valores]
+                hover_texto = [f"{cat}<br>{formatar_moeda(v)}" for cat, v in zip(categorias, valores)]
 
                 fig.add_trace(go.Bar(
                     x=categorias,
