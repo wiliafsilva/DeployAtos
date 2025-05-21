@@ -229,7 +229,8 @@ def paginaatos():
                 })
 
                 df_vendas["Dia"] = df_vendas["Data"].dt.day 
-                df_vendas["Valor_formatado"] = df_vendas["Valor"].apply(lambda x: lc.currency(x, grouping=True))
+                df_vendas["Valor_formatado"] = df_vendas["Valor"].apply(lambda x: f"R$ {x:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+
 
                 fig = go.Figure()
 
