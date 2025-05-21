@@ -513,7 +513,7 @@ def paginaatos():
                 categorias = ["Vendas ano anterior", "Meta do mês", f"Vendas de {mes_selecionado}"]
                 valores = [vendas_ano, meta_mes, vendas_mes_atual]
                 cores = ["darkgray", "darkblue", "darkred"]
-                textos_formatados = [f'R$ {lc.currency(v, grouping=True, symbol=False)}' for v in valores]
+                textos_formatados = [f'R$ {v:,.2f}'.replace(",", "X").replace(".", ",").replace("X", ".") for v in valores]
 
                 fig = go.Figure()
 
