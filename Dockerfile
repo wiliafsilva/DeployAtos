@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-# Instala pacotes de sistema e configura localização
+# Corrige localidade sem espaços e com comandos corretos
 RUN apt-get update && apt-get install -y locales && \
     locale-gen pt_BR.UTF-8 && \
     update-locale LANG=pt_BR.UTF-8
