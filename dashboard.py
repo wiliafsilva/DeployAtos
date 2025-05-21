@@ -362,9 +362,7 @@ def paginaatos():
                 lambda f: max(float(consultaSQL.obter_acumulo_de_vendas(f) or 0), 1)
             )
 
-            dados_vendas["vendas_formatado"] = dados_vendas["vendas"].apply(
-                lambda v: f"R$ {lc.format_string('%.2f', v, grouping=True)}"
-            )
+            dados_vendas["vendas_formatado"] = dados_vendas["vendas"].apply(formatar_moeda)
 
             fig_mapa = px.scatter_mapbox(
                 dados_vendas,
