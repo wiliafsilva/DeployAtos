@@ -658,7 +658,7 @@ def paginaatos():
 
                 fig = go.Figure()
 
-                df_vendas["Valor_formatado"] = df_vendas["Vendas"].apply(lambda y: lc.currency(y, grouping=True))
+                df_vendas["Valor_formatado"] = df_vendas["Vendas"].apply(lambda y: f"R$ {y:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
 
                 fig.add_trace(go.Scatter(
                     x=df_vendas["Mês"].dt.strftime('%m/%Y'),
