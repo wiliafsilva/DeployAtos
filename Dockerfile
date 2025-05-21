@@ -1,20 +1,21 @@
-FROM python:3.11-slim
+# Etapa de build
+FROM python:3.10-slim AS build
 
-# Corrige localidade sem espaços e com comandos corretos
-RUN apt-get update && apt-get install -y locales && \
-    locale-gen pt_BR.UTF-8 && \
-    update-locale LANG=pt_BR.UTF-8
-
-ENV LANG=pt_BR.UTF-8
-ENV LANGUAGE=pt_BR:pt
-ENV LC_ALL=pt_BR.UTF-8
-
+# Diretório de trabalho dentro do container
 WORKDIR /app
 
+# Copia os arquivos de requisitos
+COPY requirements.txt .
+
+# Instala as dependências
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copia o restante do código da aplicação
 COPY . .
 
-RUN pip install --no-cache-dir -r requirements.txt
+# Exponha a porta que sua aplicação utiliza
+EXPOSE 8080
 
-EXPOSE 8000
-
+# Comando para iniciar a aplicação
 CMD ["python", "main.py"]
