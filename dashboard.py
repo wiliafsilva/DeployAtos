@@ -81,7 +81,11 @@ def paginaatos():
                 st.rerun()
 
             mes_referencia = [datetime.now().strftime('%B').capitalize()]
-
+            
+            if st.sidebar.button("🖨️ Gerar Relatório"):
+                st.session_state['dashboard_page'] = 'paginarelatoriocompleto'
+                st.rerun()
+                            
             # Fim sidebar
 
             # Início cabeçalho
@@ -779,6 +783,191 @@ def paginaresidencia():
         st.write(f"Bem-vindo, {st.session_state.user_info['nome']}!")
 
 # PÁGINA NOVA ADICIONAR....
+def paginarelatoriocompleto():
+    verificar_autenticacao()
+
+    import os
+    import pandas as pd
+    from datetime import date
+    from fpdf import FPDF
+    from babel.numbers import format_currency
+
+    def formatar_brasileiro(valor):
+        try:
+            return format_currency(valor, 'BRL', locale='pt_BR')
+        except:
+            return "R$ 0,00"
+
+    def safe_percent(value):
+        try:
+            if value is None:
+                return 0.0
+            value = float(value)
+            if value == float("inf") or value == float("-inf") or pd.isna(value):
+                return 0.0
+            return value
+        except (ZeroDivisionError, ValueError, TypeError):
+            return 0.0
+
+    @st.cache_data
+    def gerar_dataframe_relatorio():
+        colunas = [
+            "FILIAL", "VENDAS 2024", "META MÊS", "PREVISÃO", "ACUM. 2024",
+            "ACUM. META", "ACUM. VENDAS", "VENDAS DO DIA", "CRESC. 2025", "CRESC. META"
+        ]
+
+        filiais = consultaSQL.obter_nmfilial_relatorio()
+        vendas_2024 = consultaSQL.obter_vendas_ano_anterior_relatorio()
+        meta_mes = consultaSQL.obter_meta_mes_relatorio()
+        previsao = consultaSQL.obter_previsao_vendas_relatorio()
+        acum_2024 = consultaSQL.acumulo_vendas_periodo_ano_anterior_relatorio()
+        acum_meta = consultaSQL.obter_acumulo_meta_ano_anterior_relatorio()
+        acum_vendas = consultaSQL.obter_acumulo_de_vendas_relatorio()
+        vendas_dia = consultaSQL.obter_ultima_venda_com_valor_relatorio()
+        cresc_2025 = consultaSQL.obter_percentual_de_crescimento_atual_relatorio()
+        cresc_meta = consultaSQL.obter_percentual_crescimento_meta_relatorio()
+
+        dados = []
+        for filial in filiais:
+            try:
+                row = {
+                    "FILIAL": filial,
+                    "VENDAS 2024": vendas_2024.get(filial, 0),
+                    "META MÊS": meta_mes.get(filial, 0),
+                    "PREVISÃO": previsao.get(filial, 0),
+                    "ACUM. 2024": acum_2024.get(filial, 0),
+                    "ACUM. META": acum_meta.get(filial, 0),
+                    "ACUM. VENDAS": acum_vendas.get(filial, 0),
+                    "VENDAS DO DIA": vendas_dia.get(filial, (0, None))[0],
+                    "CRESC. 2025": safe_percent(cresc_2025.get(filial)),
+                    "CRESC. META": safe_percent(cresc_meta.get(filial))
+                }
+                dados.append(row)
+            except Exception as e:
+                print(f"Erro na filial {filial}: {e}")
+
+        return pd.DataFrame(dados, columns=colunas)
+
+    def exportar_para_excel(df, data_venda):
+        nome_arquivo = f"Relatorio_Meta_Venda_{data_venda.strftime('%d-%m-%Y')}.xlsx"
+        with pd.ExcelWriter(nome_arquivo, engine='xlsxwriter') as writer:
+            df.to_excel(writer, sheet_name='Relatório', index=False)
+            workbook = writer.book
+            worksheet = writer.sheets['Relatório']
+            formato_percentual = workbook.add_format({'num_format': '#,##0.00"%"', 'align': 'center'})
+            formato_percentual_neg = workbook.add_format({'num_format': '#,##0.00"%"', 'align': 'center', 'font_color': 'red'})
+            formato_moeda = workbook.add_format({'num_format': '#,##0.00', 'align': 'right'})
+            formato_titulo = workbook.add_format({'bold': True, 'bg_color': '#D3D3D3', 'align': 'center'})
+            worksheet.set_row(0, None, formato_titulo)
+            for col_num, col_name in enumerate(df.columns):
+                if "CRESC" in col_name:
+                    for row_num in range(1, len(df) + 1):
+                        valor = df.iloc[row_num - 1, col_num]
+                        formato = formato_percentual_neg if valor < 0 else formato_percentual
+                        worksheet.write_number(row_num, col_num, valor, formato)
+                elif col_name != "FILIAL":
+                    for row_num in range(1, len(df) + 1):
+                        worksheet.write_number(row_num, col_num, df.iloc[row_num - 1, col_num], formato_moeda)
+                else:
+                    worksheet.set_column(col_num, col_num, 25)
+        return nome_arquivo
+
+    def gerar_pdf(df, data_venda):
+        pdf = FPDF(orientation='L', unit='mm', format='A4')
+        pdf.add_page()
+        pdf.set_font("Courier", "B", 12)
+        data_formatada = data_venda.strftime('%d/%m/%Y')
+        pdf.cell(0, 10, f"Relatório de Meta de Vendas - {data_formatada}", ln=True, align="C")
+        pdf.set_font("Courier", "B", 8)
+        colunas = list(df.columns)
+        larguras = [35, 27, 27, 27, 27, 27, 27, 27, 22, 22]
+        for i, col in enumerate(colunas):
+            pdf.cell(larguras[i], 7, col[:18], border=1, align='C')
+        pdf.ln()
+        pdf.set_font("Courier", "", 7)
+        for _, row in df.iterrows():
+            for i, col in enumerate(colunas):
+                valor = row[col]
+                if "CRESC" in col:
+                    valor_formatado = f"{valor:,.2f}".replace(",", "v").replace(".", ",").replace("v", ".") + "%"
+                    if valor < 0:
+                        valor_formatado = f"-{valor_formatado.replace('-', '')}"
+                elif col == "FILIAL":
+                    valor_formatado = str(valor)[:22]
+                else:
+                    valor_formatado = formatar_brasileiro(valor)
+                pdf.cell(larguras[i], 6, valor_formatado[:22], border=1, align='C')
+            pdf.ln()
+        nome_pdf = f"Relatorio_Meta_Venda_{data_venda.strftime('%d-%m-%Y')}.pdf"
+        pdf.output(nome_pdf)
+        return nome_pdf
+
+    def formatar_dataframe_para_exibicao(df):
+        df_formatado = df.copy()
+        for col in df.columns:
+            if "CRESC" in col:
+                df_formatado[col] = df[col].map(lambda x: f"{x:,.2f}%".replace(",", "v").replace(".", ",").replace("v", "."))
+            elif col != "FILIAL":
+                df_formatado[col] = df[col].map(formatar_brasileiro)
+        return df_formatado
+
+    df = gerar_dataframe_relatorio()
+
+    # Determina a data da última venda
+    data_venda = None
+    vendas_dia = consultaSQL.obter_ultima_venda_com_valor_relatorio()
+    for filial in consultaSQL.obter_nmfilial_relatorio():
+        try:
+            info = vendas_dia.get(filial)
+            if info and len(info) > 1:
+                data_venda = pd.to_datetime(info[1]).date()
+                break
+        except:
+            continue
+    if not data_venda:
+        data_venda = date.today()
+
+    left_co, cent_co, last_co = st.columns(3)
+    with cent_co:
+        st.image('logoatos.png', width=500)
+    st.markdown(f"<h2 style='text-align: center;'>📈 Relatório de Vendas - {data_venda.strftime('%d/%m/%Y')}</h2>", unsafe_allow_html=True)
+    st.markdown("""
+        <style>
+        [data-testid="stSidebar"] {
+            background-color: #800000; 
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+    st.sidebar.header("Menu")
+    if st.sidebar.button("Voltar Para Mês Atual"):
+        st.session_state['dashboard_page'] = 'paginaatos'
+        st.rerun()
+    if st.sidebar.button("🚪 Sair"):    
+        st.session_state.authenticated = False
+        st.session_state.page = None
+        st.rerun()
+
+    df_formatado = formatar_dataframe_para_exibicao(df)
+    st.dataframe(df_formatado.set_index(pd.Index(range(1, len(df_formatado) + 1))), use_container_width=True, height=635)
+
+    espaco1, col_botoes, espaco2 = st.columns([1, 2, 1])
+    with col_botoes:
+        col_excel, col_pdf = st.columns([1, 1])
+        with col_excel:
+            if st.button("📊 Gerar Excel"):
+                arquivo_excel = exportar_para_excel(df, data_venda)
+                st.success("✅ Excel gerado com sucesso.")
+                with open(arquivo_excel, "rb") as f:
+                    st.download_button("⬇️ Baixar Excel", f, file_name=arquivo_excel, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                os.remove(arquivo_excel)
+        with col_pdf:
+            if st.button("📄 Gerar PDF"):
+                arquivo_pdf = gerar_pdf(df, data_venda)
+                st.success("✅ PDF gerado com sucesso.")
+                with open(arquivo_pdf, "rb") as f:
+                    st.download_button("⬇️ Baixar PDF", f, file_name=arquivo_pdf, mime="application/pdf")
+                os.remove(arquivo_pdf)
 
 # SISTEMA DINÂMICO DE ROTEAMENTO
 

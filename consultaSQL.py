@@ -4,6 +4,7 @@ from datetime import datetime
 from matplotlib.dates import relativedelta
 import pandas as pd
 import pyodbc
+from decimal import Decimal
 
 dados_empresa = (
     'DRIVER={ODBC Driver 17 for SQL Server};'
@@ -907,3 +908,254 @@ def obter_percentual_crescimento_meta_mes_anterior(filial):
         return None
     finally:
         conn.close()
+
+
+def obter_nmfilial_relatorio():
+    conn = obter_conexao()
+    if conn is None:
+        return []
+    try:
+        cursor = conn.cursor()
+        cursor.execute('SELECT DISTINCT(nmfilial) FROM tbVendasDashboard ORDER BY nmfilial;')
+        return [row.nmfilial for row in cursor.fetchall()]
+    except:
+        return []
+    finally:
+        conn.close()
+
+def obter_vendas_ano_anterior_relatorio():
+    conn = obter_conexao()
+    if conn is None:
+        return {}
+    try:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT nmFilial, SUM(vlVenda) AS total_vendas
+            FROM tbVendasDashboard
+            WHERE YEAR(dtVenda) = YEAR(DATEADD(YEAR, -1, GETDATE()))
+              AND MONTH(dtVenda) = 
+                CASE 
+                    WHEN DAY(GETDATE()) = 1 THEN MONTH(DATEADD(MONTH, -1, GETDATE()))
+                    ELSE MONTH(GETDATE())
+                END
+            GROUP BY nmFilial
+        ''')
+        return {row.nmFilial: row.total_vendas or 0 for row in cursor.fetchall()}
+    except:
+        return {}
+    finally:
+        conn.close()
+
+def obter_meta_mes_relatorio():
+    conn = obter_conexao()
+    if conn is None:
+        return {}
+    try:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT nmFilial, SUM(vlVenda) * 1.05 AS meta_mes
+            FROM tbVendasDashboard
+            WHERE YEAR(dtVenda) = YEAR(DATEADD(YEAR, -1, GETDATE()))
+              AND MONTH(dtVenda) = 
+                CASE 
+                    WHEN DAY(GETDATE()) = 1 THEN MONTH(DATEADD(MONTH, -1, GETDATE()))
+                    ELSE MONTH(GETDATE())
+                END
+            GROUP BY nmFilial
+        ''')
+        return {row.nmFilial: row.meta_mes or 0 for row in cursor.fetchall()}
+    except:
+        return {}
+    finally:
+        conn.close()
+
+def obter_previsao_vendas_relatorio():
+    conn = obter_conexao()
+    if conn is None:
+        return {}
+    try:
+        cursor = conn.cursor()
+        consulta = '''
+        DECLARE @data_inicio DATE = CASE WHEN DAY(GETDATE()) = 1 THEN 
+            DATEADD(MONTH, -1, CAST(CONVERT(VARCHAR(6), YEAR(GETDATE())) + RIGHT('0' + CONVERT(VARCHAR(2), MONTH(GETDATE())), 2) + '01' AS DATE))
+        ELSE
+            CAST(CONVERT(VARCHAR(6), YEAR(GETDATE())) + RIGHT('0' + CONVERT(VARCHAR(2), MONTH(GETDATE())), 2) + '01' AS DATE)
+        END;
+
+        WITH MaxDatas AS (
+            SELECT 
+                nmFilial,
+                MAX(dtVenda) AS max_dtVenda
+            FROM tbVendasDashboard
+            WHERE 
+                dtVenda >= @data_inicio
+                AND dtVenda < CAST(GETDATE() AS DATE)
+                AND vlVenda IS NOT NULL
+            GROUP BY nmFilial
+        )
+
+        SELECT 
+            v.nmFilial,
+            CAST((
+                SUM(v.vlVenda) / NULLIF(COUNT(DISTINCT CONVERT(DATE, v.dtVenda)), 0)
+                *
+                DAY(
+                    DATEADD(DAY, -1, DATEADD(MONTH, 1, CAST(CONVERT(VARCHAR(6), YEAR(GETDATE())) + RIGHT('0' + CONVERT(VARCHAR(2), MONTH(GETDATE())), 2) + '01' AS DATE)))
+                )
+            ) AS DECIMAL(10, 2)) AS previsao_vendas
+        FROM tbVendasDashboard v
+        INNER JOIN MaxDatas md ON v.nmFilial = md.nmFilial
+        WHERE 
+            v.dtVenda >= @data_inicio
+            AND v.dtVenda <= md.max_dtVenda
+            AND v.vlVenda IS NOT NULL
+        GROUP BY v.nmFilial;
+        '''
+        cursor.execute(consulta)
+        resultados = {}
+        for row in cursor.fetchall():
+            nmfilial = getattr(row, 'nmFilial', row[0])
+            previsao = getattr(row, 'previsao_vendas', row[1])
+            resultados[nmfilial] = previsao or 0
+        return resultados
+    except Exception as e:
+        print(f"Erro: {e}")
+        return {}
+    finally:
+        conn.close()
+        
+def acumulo_vendas_periodo_ano_anterior_relatorio():
+    conn = obter_conexao()
+    if conn is None:
+        return {}
+    try:
+        cursor = conn.cursor()
+        cursor.execute('''
+            WITH DiasValidos AS (
+                SELECT DISTINCT DAY(dtVenda) AS dia, nmFilial
+                FROM tbVendasDashboard
+                WHERE 
+                    MONTH(dtVenda) = MONTH(GETDATE())
+                    AND YEAR(dtVenda) = YEAR(GETDATE())
+                    AND dtVenda <= GETDATE()
+                    AND vlVenda IS NOT NULL
+            ),
+            AcumuloAnoAnterior AS (
+                SELECT 
+                    nmFilial,
+                    vlVenda,
+                    DAY(dtVenda) AS dia
+                FROM tbVendasDashboard
+                WHERE 
+                    MONTH(dtVenda) = MONTH(GETDATE())
+                    AND YEAR(dtVenda) = YEAR(DATEADD(YEAR, -1, GETDATE()))
+                    AND vlVenda IS NOT NULL
+            )
+            SELECT 
+                d.nmFilial,
+                CASE 
+                    WHEN DAY(GETDATE()) = 1 THEN 
+                        (
+                            SELECT SUM(vlVenda)
+                            FROM tbVendasDashboard t
+                            WHERE 
+                                MONTH(dtVenda) = MONTH(DATEADD(MONTH, -1, GETDATE()))
+                                AND YEAR(dtVenda) = YEAR(DATEADD(YEAR, -1, GETDATE()))
+                                AND vlVenda IS NOT NULL
+                                AND t.nmFilial = d.nmFilial
+                        )
+                    ELSE 
+                        SUM(a.vlVenda)
+                END AS acumulo_vendas_ano_anterior
+            FROM DiasValidos d
+            LEFT JOIN AcumuloAnoAnterior a ON a.dia = d.dia AND a.nmFilial = d.nmFilial
+            GROUP BY d.nmFilial
+        ''')
+        return {row.nmFilial: row.acumulo_vendas_ano_anterior or 0 for row in cursor.fetchall()}
+    except Exception as e:
+        print(f"Erro: {e}")
+        return {}
+    finally:
+        conn.close()
+
+def obter_acumulo_meta_ano_anterior_relatorio():
+    vendas = acumulo_vendas_periodo_ano_anterior_relatorio()
+    dia = datetime.now().day
+    return {
+        filial: round(valor if dia == 1 else valor * Decimal('1.05'), 2)
+        for filial, valor in vendas.items()
+    }
+
+def obter_acumulo_de_vendas_relatorio():
+    conn = obter_conexao()
+    if conn is None:
+        return {}
+    try:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT nmFilial, SUM(vlVenda) AS total
+            FROM tbVendasDashboard
+            WHERE 
+                YEAR(dtVenda) = CASE WHEN DAY(GETDATE()) = 1 THEN YEAR(DATEADD(MONTH, -1, GETDATE())) ELSE YEAR(GETDATE()) END
+                AND MONTH(dtVenda) = CASE WHEN DAY(GETDATE()) = 1 THEN MONTH(DATEADD(MONTH, -1, GETDATE())) ELSE MONTH(GETDATE()) END
+            GROUP BY nmFilial
+        ''')
+        return {row.nmFilial: row.total or 0 for row in cursor.fetchall()}
+    except:
+        return {}
+    finally:
+        conn.close()
+
+def obter_ultima_venda_com_valor_relatorio():
+    conn = obter_conexao()
+    if conn is None:
+        return {}
+    try:
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT t1.nmFilial, t1.vlVenda, t1.dtVenda
+            FROM tbVendasDashboard t1
+            INNER JOIN (
+                SELECT nmFilial, MAX(dtVenda) AS ultima_data
+                FROM tbVendasDashboard
+                WHERE vlVenda IS NOT NULL
+                    AND YEAR(dtVenda) = YEAR(GETDATE()) 
+                    AND MONTH(dtVenda) <= MONTH(GETDATE())
+                GROUP BY nmFilial
+            ) t2 ON t1.nmFilial = t2.nmFilial AND t1.dtVenda = t2.ultima_data
+        ''')
+        return {row.nmFilial: (row.vlVenda or 0, row.dtVenda) for row in cursor.fetchall()}
+    except:
+        return {}
+    finally:
+        conn.close()
+
+def obter_percentual_de_crescimento_atual_relatorio():
+    atual = obter_acumulo_de_vendas_relatorio()
+    anterior = acumulo_vendas_periodo_ano_anterior_relatorio()
+    percentuais = {}
+    for filial in atual:
+        try:
+            if anterior.get(filial):
+                valor = ((atual[filial] / anterior[filial]) - 1) * 100
+                percentuais[filial] = round(valor, 2)
+            else:
+                percentuais[filial] = 0.0
+        except:
+            percentuais[filial] = 0.0
+    return percentuais
+
+def obter_percentual_crescimento_meta_relatorio():
+    atual = obter_acumulo_de_vendas_relatorio()
+    meta = obter_acumulo_meta_ano_anterior_relatorio()
+    percentuais = {}
+    for filial in atual:
+        try:
+            if meta.get(filial):
+                valor = ((atual[filial] / meta[filial]) - 1) * 100
+                percentuais[filial] = round(valor, 2)
+            else:
+                percentuais[filial] = 0.0
+        except:
+            percentuais[filial] = 0.0
+    return percentuais
