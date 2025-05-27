@@ -9,6 +9,12 @@ import sys
 from inspect import getmembers, isfunction
 from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime, timedelta
+import os
+import pandas as pd
+from datetime import date
+from fpdf import FPDF
+from babel.numbers import format_currency
+
 
 try:
     lc.setlocale(lc.LC_ALL, 'pt_BR.UTF-8')
@@ -714,83 +720,8 @@ def paginaatos():
         st.session_state.page = None
         st.rerun()
 
-
-
-# PÁGINA UNIT
-
-def paginaunit():
-    verificar_autenticacao()
-    
-    # Configuração da página
-    st.set_page_config(page_title="Dashboard", page_icon="📊", layout="wide")
-    
-    # Barra lateral
-    if 'user_info' in st.session_state:
-        st.sidebar.subheader("Informações do Usuário")
-        st.sidebar.write(f"👤 Nome: {st.session_state.user_info['nome']}")
-        st.sidebar.write(f"🔑 Permissão: {st.session_state.user_info['permissao']}")
-        
-        # Adicionar botão Voltar apenas para administradores
-        if st.session_state.user_info['permissao'].lower() == 'adm':
-            if st.sidebar.button("⬅️ Voltar para Administração"):
-                st.session_state.page = 'adm'
-                st.rerun()
-    
-    # Botão sair da conta
-    if st.sidebar.button("🚪 Sair"):
-        st.session_state.authenticated = False
-        st.session_state.page = None
-        st.rerun()
-    
-    # Nome Principal Pagina
-    st.title("📊 TESTE")
-    
-    # Mensagem boas vindas com nome cadastrado na conta
-    if 'user_info' in st.session_state:
-        st.write(f"Bem-vindo, {st.session_state.user_info['nome']}!")
-
-# PÁGINA RESIDENCIA
-
-def paginaresidencia():
-    verificar_autenticacao()
-    
-    # Configuração da página
-    st.set_page_config(page_title="Dashboard", page_icon="📊", layout="wide")
-    
-    # Barra lateral
-    if 'user_info' in st.session_state:
-        st.sidebar.subheader("Informações do Usuário")
-        st.sidebar.write(f"👤 Nome: {st.session_state.user_info['nome']}")
-        st.sidebar.write(f"🔑 Permissão: {st.session_state.user_info['permissao']}")
-        
-        # Adicionar botão Voltar apenas para administradores
-        if st.session_state.user_info['permissao'].lower() == 'adm':
-            if st.sidebar.button("⬅️ Voltar para Administração"):
-                st.session_state.page = 'adm'
-                st.rerun()
-    
-    # Botão sair da conta
-    if st.sidebar.button("🚪 Sair"):
-        st.session_state.authenticated = False
-        st.session_state.page = None
-        st.rerun()
-    
-    # Nome Principal Pagina
-    st.title("📊 Residencia")
-    
-    # Mensagem boas vindas com nome cadastrado na conta
-    if 'user_info' in st.session_state:
-        st.write(f"Bem-vindo, {st.session_state.user_info['nome']}!")
-
-# PÁGINA NOVA ADICIONAR....
 def paginarelatoriocompleto():
     verificar_autenticacao()
-
-    import os
-    import pandas as pd
-    from datetime import date
-    from fpdf import FPDF
-    from babel.numbers import format_currency
 
     def formatar_brasileiro(valor):
         try:
@@ -968,6 +899,74 @@ def paginarelatoriocompleto():
                 with open(arquivo_pdf, "rb") as f:
                     st.download_button("⬇️ Baixar PDF", f, file_name=arquivo_pdf, mime="application/pdf")
                 os.remove(arquivo_pdf)
+
+# PÁGINA UNIT
+
+def paginaunit():
+    verificar_autenticacao()
+    
+    # Configuração da página
+    st.set_page_config(page_title="Dashboard", page_icon="📊", layout="wide")
+    
+    # Barra lateral
+    if 'user_info' in st.session_state:
+        st.sidebar.subheader("Informações do Usuário")
+        st.sidebar.write(f"👤 Nome: {st.session_state.user_info['nome']}")
+        st.sidebar.write(f"🔑 Permissão: {st.session_state.user_info['permissao']}")
+        
+        # Adicionar botão Voltar apenas para administradores
+        if st.session_state.user_info['permissao'].lower() == 'adm':
+            if st.sidebar.button("⬅️ Voltar para Administração"):
+                st.session_state.page = 'adm'
+                st.rerun()
+    
+    # Botão sair da conta
+    if st.sidebar.button("🚪 Sair"):
+        st.session_state.authenticated = False
+        st.session_state.page = None
+        st.rerun()
+    
+    # Nome Principal Pagina
+    st.title("📊 TESTE")
+    
+    # Mensagem boas vindas com nome cadastrado na conta
+    if 'user_info' in st.session_state:
+        st.write(f"Bem-vindo, {st.session_state.user_info['nome']}!")
+
+# PÁGINA RESIDENCIA
+
+def paginaresidencia():
+    verificar_autenticacao()
+    
+    # Configuração da página
+    st.set_page_config(page_title="Dashboard", page_icon="📊", layout="wide")
+    
+    # Barra lateral
+    if 'user_info' in st.session_state:
+        st.sidebar.subheader("Informações do Usuário")
+        st.sidebar.write(f"👤 Nome: {st.session_state.user_info['nome']}")
+        st.sidebar.write(f"🔑 Permissão: {st.session_state.user_info['permissao']}")
+        
+        # Adicionar botão Voltar apenas para administradores
+        if st.session_state.user_info['permissao'].lower() == 'adm':
+            if st.sidebar.button("⬅️ Voltar para Administração"):
+                st.session_state.page = 'adm'
+                st.rerun()
+    
+    # Botão sair da conta
+    if st.sidebar.button("🚪 Sair"):
+        st.session_state.authenticated = False
+        st.session_state.page = None
+        st.rerun()
+    
+    # Nome Principal Pagina
+    st.title("📊 Residencia")
+    
+    # Mensagem boas vindas com nome cadastrado na conta
+    if 'user_info' in st.session_state:
+        st.write(f"Bem-vindo, {st.session_state.user_info['nome']}!")
+
+# PÁGINA NOVA ADICIONAR....
 
 # SISTEMA DINÂMICO DE ROTEAMENTO
 
