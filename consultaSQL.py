@@ -1,6 +1,6 @@
 #Conxão com o banco
 import calendar
-from datetime import datetime
+from datetime import datetime, timedelta
 from matplotlib.dates import relativedelta
 import pandas as pd
 import pyodbc
@@ -519,16 +519,19 @@ def obter_percentual_crescimento_meta(filial):
 
 def obter_vendas_por_mes_e_filial(mes_referencia, filial_selecionada):
     nomes_para_numeros = {
-        "Janeiro": "01", "Fevereiro": "02", "Março": "03", "Abril": "04",
-        "Maio": "05", "Junho": "06", "Julho": "07", "Agosto": "08",
-        "Setembro": "09", "Outubro": "10", "Novembro": "11", "Dezembro": "12"
+        "Janeiro": 1, "Fevereiro": 2, "Março": 3, "Abril": 4,
+        "Maio": 5, "Junho": 6, "Julho": 7, "Agosto": 8,
+        "Setembro": 9, "Outubro": 10, "Novembro": 11, "Dezembro": 12
     }
+
+    numeros_para_nomes = {v: k for k, v in nomes_para_numeros.items()}
 
     if not (mes_referencia and filial_selecionada):
         return []
 
-    ano_atual = datetime.now().year
-    ano_anterior = ano_atual - 1
+    data_base = datetime.now() - timedelta(days=1)
+    ano_base = data_base.year
+
     resultados_totais = []
 
     conn = obter_conexao()
@@ -539,17 +542,15 @@ def obter_vendas_por_mes_e_filial(mes_referencia, filial_selecionada):
         cursor = conn.cursor()
 
         for mes_nome in mes_referencia:
-            try:
-                mes_num = int(nomes_para_numeros[mes_nome])
-            except KeyError:
-                print(f"Erro: Mês '{mes_nome}' não encontrado no dicionário. Usando o mês atual como padrão.")
-                mes_num = datetime.now().month  # datetime vem do import do topo
+            mes_num = nomes_para_numeros.get(mes_nome)
+            if not mes_num:
+                print(f"Erro: Mês '{mes_nome}' inválido. Pulando.")
+                continue
 
-            ultimo_dia = calendar.monthrange(ano_atual, mes_num)[1]
-
-            # Busca para o ano atual
-            data_inicio_atual = f"{ano_atual}-{mes_num:02d}-01"
-            data_fim_atual = f"{ano_atual}-{mes_num:02d}-{ultimo_dia}"
+            # Tentativa 1: mês atual
+            ultimo_dia = calendar.monthrange(ano_base, mes_num)[1]
+            data_inicio = f"{ano_base}-{mes_num:02d}-01"
+            data_fim = f"{ano_base}-{mes_num:02d}-{ultimo_dia}"
 
             query = """
                 SELECT vlVenda, dtVenda, ? as mes_nome, ? as ano
@@ -558,10 +559,30 @@ def obter_vendas_por_mes_e_filial(mes_referencia, filial_selecionada):
                 AND nmFilial = ?
                 ORDER BY dtVenda
             """
-            cursor.execute(query, (mes_nome, ano_atual, data_inicio_atual, data_fim_atual, filial_selecionada))
-            resultados_totais.extend(cursor.fetchall())
+            cursor.execute(query, (mes_nome, ano_base, data_inicio, data_fim, filial_selecionada))
+            resultados = cursor.fetchall()
 
-            # Busca para o ano anterior
+            # Se não houver dados no mês atual, tenta o mês anterior
+            if not resultados:
+                mes_anterior = mes_num - 1
+                ano_anterior_mes = ano_base
+
+                if mes_anterior == 0:
+                    mes_anterior = 12
+                    ano_anterior_mes -= 1
+
+                mes_anterior_nome = numeros_para_nomes[mes_anterior]
+                ultimo_dia_ant = calendar.monthrange(ano_anterior_mes, mes_anterior)[1]
+                data_inicio_ant = f"{ano_anterior_mes}-{mes_anterior:02d}-01"
+                data_fim_ant = f"{ano_anterior_mes}-{mes_anterior:02d}-{ultimo_dia_ant}"
+
+                cursor.execute(query, (mes_anterior_nome, ano_anterior_mes, data_inicio_ant, data_fim_ant, filial_selecionada))
+                resultados = cursor.fetchall()
+
+            resultados_totais.extend(resultados)
+
+            # Busca também para o mesmo mês do ano anterior
+            ano_anterior = ano_base - 1
             data_inicio_anterior = f"{ano_anterior}-{mes_num:02d}-01"
             data_fim_anterior = f"{ano_anterior}-{mes_num:02d}-{calendar.monthrange(ano_anterior, mes_num)[1]}"
 
@@ -623,7 +644,9 @@ def obter_vendas_anual_e_filial(filial_selecionada):
         return {}
     finally:
         conn.close()
-    
+
+"""Dash mês anterior"""   
+ 
 def obter_vendas_ano_anterior_mes_anterior(filial, mes, ano):
     """Executa a consulta para obter o total de vendas do mesmo período do ano anterior para a filial especificada."""
     conn = obter_conexao()
@@ -905,6 +928,8 @@ def obter_percentual_crescimento_meta_mes_anterior(filial):
         return None
     finally:
         conn.close()
+
+"""Relatório"""
 
 def obter_nmfilial_relatorio():
     conn = obter_conexao()

@@ -86,7 +86,8 @@ def paginaatos():
                 st.session_state['pagina'] = 'meses_anterior'
                 st.rerun()
 
-            mes_referencia = [datetime.now().strftime('%B').capitalize()]
+            mes_referencia = [ (datetime.now() - timedelta(days=1)).strftime('%B').capitalize() ]
+            vendas = consultaSQL.obter_vendas_por_mes_e_filial(mes_referencia, filial_selecionada)
             
             if st.sidebar.button("🖨️ Gerar Relatório"):
                 st.session_state['dashboard_page'] = 'paginarelatoriocompleto'
@@ -98,7 +99,7 @@ def paginaatos():
             left_co, cent_co, last_co = st.columns(3)
             with cent_co:
                 st.image('logoatos.png', width=500)
-            st.write(f"# Relatório de venda da {filial_selecionada}")
+            st.write(f"# Dashboard de venda da {filial_selecionada}")
             # Fim cabeçalho
 
             total_vendas = consultaSQL.obter_vendas_ano_anterior(filial_selecionada)
