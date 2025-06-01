@@ -9,6 +9,7 @@ import sys
 from inspect import getmembers, isfunction
 from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime, timedelta
+import calendar
 import os
 import pandas as pd
 from datetime import date
@@ -86,8 +87,30 @@ def paginaatos():
                 st.session_state['pagina'] = 'meses_anterior'
                 st.rerun()
 
-            mes_referencia = [ (datetime.now() - timedelta(days=1)).strftime('%B').capitalize() ]
+            # Lista de nomes dos meses
+            meses_nomes = [
+                "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+                "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+            ]
+
+            # Usa o dia anterior como base
+            data_base = datetime.now() - timedelta(days=1)
+            mes_num = data_base.month
+            ano_base = data_base.year
+
+            # Define o mês atual como referência
+            mes_referencia = [meses_nomes[mes_num - 1]]
             vendas = consultaSQL.obter_vendas_por_mes_e_filial(mes_referencia, filial_selecionada)
+
+            # Se não houver dados no mês atual, tenta o mês anterior
+            if not vendas:
+                if mes_num == 1:
+                    mes_anterior = 12
+                    ano_base -= 1
+                else:
+                    mes_anterior = mes_num - 1
+                mes_referencia = [meses_nomes[mes_anterior - 1]]
+                vendas = consultaSQL.obter_vendas_por_mes_e_filial(mes_referencia, filial_selecionada)
             
             if st.sidebar.button("🖨️ Gerar Relatório"):
                 st.session_state['dashboard_page'] = 'paginarelatoriocompleto'
