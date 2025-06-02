@@ -174,67 +174,40 @@ def obter_previsao_vendas(filial):
     try:
         cursor = conn.cursor()
         consulta = '''
-        -- Declara variável para controlar se deve usar mês atual
-        DECLARE @usarMesAtual BIT = 0;
-
-        -- Verifica se há ao menos uma venda não nula no mês atual para a filial
-        IF EXISTS (
-            SELECT 1
+            SELECT
+                CAST(
+                    (
+                        SUM(vlVenda) / 
+                        CAST(COUNT(DISTINCT CONVERT(DATE, CASE WHEN vlVenda IS NOT NULL THEN dtVenda END)) AS FLOAT)
+                    ) *
+                    CAST(
+                        DAY(DATEADD(DAY, -1, DATEADD(MONTH, 1, CAST(CAST(YEAR(GETDATE()) AS VARCHAR) + '-' + 
+                            RIGHT('0' + CAST(MONTH(GETDATE()) AS VARCHAR), 2) + '-01' AS DATE)))) AS FLOAT
+                    )
+                AS DECIMAL(10,2)) AS previsao_vendas
             FROM tbVendasDashboard
             WHERE
-                YEAR(dtVenda) = YEAR(GETDATE()) AND
-                MONTH(dtVenda) = MONTH(GETDATE()) AND
-                vlVenda IS NOT NULL AND
-                nmFilial = ?
-        )
-        BEGIN
-            SET @usarMesAtual = 1;
-        END
-
-        -- Agora faz a consulta principal com base na variável
-        SELECT
-            CAST(
-                (
-                    ISNULL(SUM(vlVenda), 0) / 
-                    CAST(
-                        DAY(DATEADD(DAY, -1, DATEADD(MONTH, 0, 
-                            CAST(
-                                CAST(YEAR(DATEADD(MONTH, -1, GETDATE())) AS VARCHAR) + '-' +
-                                RIGHT('0' + CAST(MONTH(DATEADD(MONTH, -1, GETDATE())) AS VARCHAR), 2) + '-01' AS DATE)
-                        ))) AS FLOAT
-                    )
-                ) * 
-                CAST(
-                    DAY(DATEADD(DAY, -1, DATEADD(MONTH, 0, 
-                        CAST(
+                dtVenda >= 
+                    CASE 
+                        WHEN DAY(GETDATE()) = 1 THEN 
                             CAST(YEAR(DATEADD(MONTH, -1, GETDATE())) AS VARCHAR) + '-' +
-                            RIGHT('0' + CAST(MONTH(DATEADD(MONTH, -1, GETDATE())) AS VARCHAR), 2) + '-01' AS DATE)
-                    ))) AS FLOAT
+                            RIGHT('0' + CAST(MONTH(DATEADD(MONTH, -1, GETDATE())) AS VARCHAR), 2) + '-01'
+                        ELSE
+                            CAST(YEAR(GETDATE()) AS VARCHAR) + '-' +
+                            RIGHT('0' + CAST(MONTH(GETDATE()) AS VARCHAR), 2) + '-01'
+                    END
+                AND dtVenda <= (
+                    SELECT MAX(dtVenda)
+                    FROM tbVendasDashboard
+                    WHERE 
+                        YEAR(dtVenda) = YEAR(GETDATE())
+                        AND MONTH(dtVenda) = MONTH(GETDATE())
+                        AND dtVenda < GETDATE()
+                        AND nmFilial = ?
                 )
-            AS DECIMAL(10,2)) AS previsao_vendas
-        FROM tbVendasDashboard
-        WHERE
-            dtVenda >= 
-                CASE 
-                    WHEN @usarMesAtual = 1 THEN
-                        CAST(YEAR(GETDATE()) AS VARCHAR) + '-' +
-                        RIGHT('0' + CAST(MONTH(GETDATE()) AS VARCHAR), 2) + '-01'
-                    ELSE
-                        CAST(YEAR(DATEADD(MONTH, -1, GETDATE())) AS VARCHAR) + '-' +
-                        RIGHT('0' + CAST(MONTH(DATEADD(MONTH, -1, GETDATE())) AS VARCHAR), 2) + '-01'
-                END
-            AND dtVenda <= (
-                SELECT MAX(dtVenda)
-                FROM tbVendasDashboard
-                WHERE 
-                    YEAR(dtVenda) = YEAR(GETDATE())
-                    AND MONTH(dtVenda) = MONTH(GETDATE())
-                    AND dtVenda < GETDATE()
-                    AND nmFilial = ?
-            )
-            AND nmFilial = ?
+                AND nmFilial = ?
         '''
-        cursor.execute(consulta, (filial, filial, filial))
+        cursor.execute(consulta, (filial, filial))
         resultado = cursor.fetchone()
         return resultado.previsao_vendas if resultado and resultado.previsao_vendas is not None else 0
     except pyodbc.Error as e:
@@ -1094,69 +1067,40 @@ def obter_previsao_vendas_relatorio():
     try:
         cursor = conn.cursor()
         consulta = '''
-        WITH FlagMes AS (
-            SELECT DISTINCT
-                nmFilial,
-                CASE WHEN EXISTS (
-                    SELECT 1 FROM tbVendasDashboard v2
-                    WHERE
-                        v2.nmFilial = v1.nmFilial
-                        AND YEAR(v2.dtVenda) = YEAR(CAST(GETDATE() AS DATE))
-                        AND MONTH(v2.dtVenda) = MONTH(CAST(GETDATE() AS DATE))
-                        AND v2.vlVenda IS NOT NULL
-                ) THEN 1 ELSE 0 END AS usarMesAtual
-            FROM tbVendasDashboard v1
-        ),
+        DECLARE @data_inicio DATE = CASE WHEN DAY(GETDATE()) = 1 THEN 
+            DATEADD(MONTH, -1, CAST(CONVERT(VARCHAR(6), YEAR(GETDATE())) + RIGHT('0' + CONVERT(VARCHAR(2), MONTH(GETDATE())), 2) + '01' AS DATE))
+        ELSE
+            CAST(CONVERT(VARCHAR(6), YEAR(GETDATE())) + RIGHT('0' + CONVERT(VARCHAR(2), MONTH(GETDATE())), 2) + '01' AS DATE)
+        END;
 
-        MaxDatas AS (
+        WITH MaxDatas AS (
             SELECT 
-                v.nmFilial,
-                MAX(v.dtVenda) AS max_dtVenda,
-                f.usarMesAtual
-            FROM tbVendasDashboard v
-            INNER JOIN FlagMes f ON v.nmFilial = f.nmFilial
-            WHERE
-                (
-                    (f.usarMesAtual = 1 AND v.dtVenda >= CAST(CAST(YEAR(CAST(GETDATE() AS DATE)) AS VARCHAR(4)) + '-' + RIGHT('0' + CAST(MONTH(CAST(GETDATE() AS DATE)) AS VARCHAR(2)), 2) + '-01' AS DATE))
-                    OR
-                    (f.usarMesAtual = 0 AND v.dtVenda >= DATEADD(MONTH, -1, CAST(CAST(YEAR(CAST(GETDATE() AS DATE)) AS VARCHAR(4)) + '-' + RIGHT('0' + CAST(MONTH(CAST(GETDATE() AS DATE)) AS VARCHAR(2)), 2) + '-01' AS DATE)))
-                )
-                AND v.dtVenda < CAST(GETDATE() AS DATE)
-                AND v.vlVenda IS NOT NULL
-            GROUP BY v.nmFilial, f.usarMesAtual
-        ),
-
-        DiasMes AS (
-            SELECT
                 nmFilial,
-                usarMesAtual,
-                CASE 
-                    WHEN usarMesAtual = 1 THEN
-                        DAY(DATEADD(DAY, -1, DATEADD(MONTH, 1, CAST(CAST(YEAR(CAST(GETDATE() AS DATE)) AS VARCHAR(4)) + '-' + RIGHT('0' + CAST(MONTH(CAST(GETDATE() AS DATE)) AS VARCHAR(2)), 2) + '-01' AS DATE))))
-                    ELSE
-                        DAY(DATEADD(DAY, -1, DATEADD(MONTH, 0, CAST(CAST(YEAR(DATEADD(MONTH, -1, CAST(GETDATE() AS DATE))) AS VARCHAR(4)) + '-' + RIGHT('0' + CAST(MONTH(DATEADD(MONTH, -1, CAST(GETDATE() AS DATE))) AS VARCHAR(2)), 2) + '-01' AS DATE))))
-                END AS dias_no_mes
-            FROM FlagMes
+                MAX(dtVenda) AS max_dtVenda
+            FROM tbVendasDashboard
+            WHERE 
+                dtVenda >= @data_inicio
+                AND dtVenda < CAST(GETDATE() AS DATE)
+                AND vlVenda IS NOT NULL
+            GROUP BY nmFilial
         )
 
         SELECT 
             v.nmFilial,
-            CAST(
-                (SUM(v.vlVenda) / CAST(dm.dias_no_mes AS FLOAT)) *
-                CAST(dm.dias_no_mes AS FLOAT)
-            AS DECIMAL(10,2)) AS previsao_vendas
+            CAST((
+                SUM(v.vlVenda) / NULLIF(COUNT(DISTINCT CONVERT(DATE, v.dtVenda)), 0)
+                *
+                DAY(
+                    DATEADD(DAY, -1, DATEADD(MONTH, 1, CAST(CONVERT(VARCHAR(6), YEAR(GETDATE())) + RIGHT('0' + CONVERT(VARCHAR(2), MONTH(GETDATE())), 2) + '01' AS DATE)))
+                )
+            ) AS DECIMAL(10, 2)) AS previsao_vendas
         FROM tbVendasDashboard v
         INNER JOIN MaxDatas md ON v.nmFilial = md.nmFilial
-        INNER JOIN DiasMes dm ON v.nmFilial = dm.nmFilial
-        WHERE
-            v.dtVenda >= CASE WHEN md.usarMesAtual = 1 THEN
-                                 CAST(CAST(YEAR(CAST(GETDATE() AS DATE)) AS VARCHAR(4)) + '-' + RIGHT('0' + CAST(MONTH(CAST(GETDATE() AS DATE)) AS VARCHAR(2)), 2) + '-01' AS DATE)
-                             ELSE
-                                 DATEADD(MONTH, -1, CAST(CAST(YEAR(CAST(GETDATE() AS DATE)) AS VARCHAR(4)) + '-' + RIGHT('0' + CAST(MONTH(CAST(GETDATE() AS DATE)) AS VARCHAR(2)), 2) + '-01' AS DATE))
-                        END
+        WHERE 
+            v.dtVenda >= @data_inicio
             AND v.dtVenda <= md.max_dtVenda
             AND v.vlVenda IS NOT NULL
-        GROUP BY v.nmFilial, dm.dias_no_mes;
+        GROUP BY v.nmFilial;
         '''
         cursor.execute(consulta)
         resultados = {}
