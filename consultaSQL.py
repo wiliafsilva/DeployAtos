@@ -978,15 +978,50 @@ def obter_vendas_ano_anterior_relatorio():
     try:
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT nmFilial, SUM(vlVenda) AS total_vendas
-            FROM tbVendasDashboard
-            WHERE YEAR(dtVenda) = YEAR(DATEADD(YEAR, -1, GETDATE()))
-              AND MONTH(dtVenda) = 
-                CASE 
-                    WHEN DAY(GETDATE()) = 1 THEN MONTH(DATEADD(MONTH, -1, GETDATE()))
-                    ELSE MONTH(GETDATE())
-                END
-            GROUP BY nmFilial
+            WITH dados_referencia AS (
+                SELECT 
+                    MONTH(CASE 
+                              WHEN EXISTS (
+                                  SELECT 1 
+                                  FROM tbVendasDashboard 
+                                  WHERE YEAR(dtVenda) = YEAR(GETDATE())
+                                    AND MONTH(dtVenda) = 
+                                        CASE 
+                                            WHEN DAY(GETDATE()) = 1 THEN MONTH(DATEADD(MONTH, -1, GETDATE()))
+                                            ELSE MONTH(GETDATE())
+                                        END
+                                    AND vlVenda IS NOT NULL
+                              )
+                              THEN GETDATE()
+                              ELSE DATEADD(MONTH, -1, GETDATE())
+                         END) AS mes_referencia,
+                    YEAR(CASE 
+                              WHEN EXISTS (
+                                  SELECT 1 
+                                  FROM tbVendasDashboard 
+                                  WHERE YEAR(dtVenda) = YEAR(GETDATE())
+                                    AND MONTH(dtVenda) = 
+                                        CASE 
+                                            WHEN DAY(GETDATE()) = 1 THEN MONTH(DATEADD(MONTH, -1, GETDATE()))
+                                            ELSE MONTH(GETDATE())
+                                        END
+                                    AND vlVenda IS NOT NULL
+                              )
+                              THEN GETDATE()
+                              ELSE DATEADD(MONTH, -1, GETDATE())
+                         END) AS ano_referencia
+            )
+
+            SELECT 
+                nmFilial, 
+                SUM(vlVenda) AS total_vendas
+            FROM 
+                tbVendasDashboard, dados_referencia
+            WHERE 
+                YEAR(dtVenda) = ano_referencia - 1
+                AND MONTH(dtVenda) = mes_referencia
+            GROUP BY 
+                nmFilial
         ''')
         return {row.nmFilial: row.total_vendas or 0 for row in cursor.fetchall()}
     except:
@@ -1001,15 +1036,50 @@ def obter_meta_mes_relatorio():
     try:
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT nmFilial, SUM(vlVenda) * 1.05 AS meta_mes
-            FROM tbVendasDashboard
-            WHERE YEAR(dtVenda) = YEAR(DATEADD(YEAR, -1, GETDATE()))
-              AND MONTH(dtVenda) = 
-                CASE 
-                    WHEN DAY(GETDATE()) = 1 THEN MONTH(DATEADD(MONTH, -1, GETDATE()))
-                    ELSE MONTH(GETDATE())
-                END
-            GROUP BY nmFilial
+            WITH dados_referencia AS (
+                SELECT 
+                    MONTH(CASE 
+                              WHEN EXISTS (
+                                  SELECT 1 
+                                  FROM tbVendasDashboard 
+                                  WHERE YEAR(dtVenda) = YEAR(GETDATE())
+                                    AND MONTH(dtVenda) = 
+                                        CASE 
+                                            WHEN DAY(GETDATE()) = 1 THEN MONTH(DATEADD(MONTH, -1, GETDATE()))
+                                            ELSE MONTH(GETDATE())
+                                        END
+                                    AND vlVenda IS NOT NULL
+                              )
+                              THEN GETDATE()
+                              ELSE DATEADD(MONTH, -1, GETDATE())
+                         END) AS mes_referencia,
+                    YEAR(CASE 
+                              WHEN EXISTS (
+                                  SELECT 1 
+                                  FROM tbVendasDashboard 
+                                  WHERE YEAR(dtVenda) = YEAR(GETDATE())
+                                    AND MONTH(dtVenda) = 
+                                        CASE 
+                                            WHEN DAY(GETDATE()) = 1 THEN MONTH(DATEADD(MONTH, -1, GETDATE()))
+                                            ELSE MONTH(GETDATE())
+                                        END
+                                    AND vlVenda IS NOT NULL
+                              )
+                              THEN GETDATE()
+                              ELSE DATEADD(MONTH, -1, GETDATE())
+                         END) AS ano_referencia
+            )
+
+            SELECT 
+                nmFilial, 
+                SUM(vlVenda) * 1.05 AS meta_mes
+            FROM 
+                tbVendasDashboard, dados_referencia
+            WHERE 
+                YEAR(dtVenda) = ano_referencia - 1
+                AND MONTH(dtVenda) = mes_referencia
+            GROUP BY 
+                nmFilial
         ''')
         return {row.nmFilial: row.meta_mes or 0 for row in cursor.fetchall()}
     except:
@@ -1024,51 +1094,69 @@ def obter_previsao_vendas_relatorio():
     try:
         cursor = conn.cursor()
         consulta = '''
-        DECLARE @data_inicio DATE = CASE WHEN DAY(GETDATE()) = 1 THEN 
-            DATEADD(MONTH, -1, CAST(CAST(YEAR(GETDATE()) AS VARCHAR(4)) + '-' + RIGHT('0' + CAST(MONTH(GETDATE()) AS VARCHAR(2)), 2) + '-01' AS DATE))
-        ELSE
-            CAST(CAST(YEAR(GETDATE()) AS VARCHAR(4)) + '-' + RIGHT('0' + CAST(MONTH(GETDATE()) AS VARCHAR(2)), 2) + '-01' AS DATE)
-        END;
-
-        WITH MaxDatas AS (
-            SELECT 
+        WITH FlagMes AS (
+            SELECT DISTINCT
                 nmFilial,
-                MAX(dtVenda) AS max_dtVenda
-            FROM tbVendasDashboard
-            WHERE 
-                dtVenda >= @data_inicio
-                AND dtVenda < CAST(GETDATE() AS DATE)
-                AND vlVenda IS NOT NULL
-            GROUP BY nmFilial
+                CASE WHEN EXISTS (
+                    SELECT 1 FROM tbVendasDashboard v2
+                    WHERE
+                        v2.nmFilial = v1.nmFilial
+                        AND YEAR(v2.dtVenda) = YEAR(CAST(GETDATE() AS DATE))
+                        AND MONTH(v2.dtVenda) = MONTH(CAST(GETDATE() AS DATE))
+                        AND v2.vlVenda IS NOT NULL
+                ) THEN 1 ELSE 0 END AS usarMesAtual
+            FROM tbVendasDashboard v1
+        ),
+
+        MaxDatas AS (
+            SELECT 
+                v.nmFilial,
+                MAX(v.dtVenda) AS max_dtVenda,
+                f.usarMesAtual
+            FROM tbVendasDashboard v
+            INNER JOIN FlagMes f ON v.nmFilial = f.nmFilial
+            WHERE
+                (
+                    (f.usarMesAtual = 1 AND v.dtVenda >= CAST(CAST(YEAR(CAST(GETDATE() AS DATE)) AS VARCHAR(4)) + '-' + RIGHT('0' + CAST(MONTH(CAST(GETDATE() AS DATE)) AS VARCHAR(2)), 2) + '-01' AS DATE))
+                    OR
+                    (f.usarMesAtual = 0 AND v.dtVenda >= DATEADD(MONTH, -1, CAST(CAST(YEAR(CAST(GETDATE() AS DATE)) AS VARCHAR(4)) + '-' + RIGHT('0' + CAST(MONTH(CAST(GETDATE() AS DATE)) AS VARCHAR(2)), 2) + '-01' AS DATE)))
+                )
+                AND v.dtVenda < CAST(GETDATE() AS DATE)
+                AND v.vlVenda IS NOT NULL
+            GROUP BY v.nmFilial, f.usarMesAtual
+        ),
+
+        DiasMes AS (
+            SELECT
+                nmFilial,
+                usarMesAtual,
+                CASE 
+                    WHEN usarMesAtual = 1 THEN
+                        DAY(DATEADD(DAY, -1, DATEADD(MONTH, 1, CAST(CAST(YEAR(CAST(GETDATE() AS DATE)) AS VARCHAR(4)) + '-' + RIGHT('0' + CAST(MONTH(CAST(GETDATE() AS DATE)) AS VARCHAR(2)), 2) + '-01' AS DATE))))
+                    ELSE
+                        DAY(DATEADD(DAY, -1, DATEADD(MONTH, 0, CAST(CAST(YEAR(DATEADD(MONTH, -1, CAST(GETDATE() AS DATE))) AS VARCHAR(4)) + '-' + RIGHT('0' + CAST(MONTH(DATEADD(MONTH, -1, CAST(GETDATE() AS DATE))) AS VARCHAR(2)), 2) + '-01' AS DATE))))
+                END AS dias_no_mes
+            FROM FlagMes
         )
 
         SELECT 
             v.nmFilial,
             CAST(
-                (SUM(v.vlVenda) / CAST(DAY(
-                    DATEADD(DAY, -1, DATEADD(MONTH, 1,
-                        CAST(CAST(YEAR(GETDATE()) AS VARCHAR(4)) + '-' +
-                             RIGHT('0' + CAST(MONTH(GETDATE()) AS VARCHAR(2)), 2) + '-01'
-                        AS DATE)
-                    ))
-                ) AS FLOAT))
-                *
-                CAST(DAY(
-                    DATEADD(DAY, -1, DATEADD(MONTH, 1,
-                        CAST(CAST(YEAR(GETDATE()) AS VARCHAR(4)) + '-' +
-                             RIGHT('0' + CAST(MONTH(GETDATE()) AS VARCHAR(2)), 2) + '-01'
-                        AS DATE)
-                    ))
-                ) AS FLOAT)
-            AS DECIMAL(10, 2)
-            ) AS previsao_vendas
+                (SUM(v.vlVenda) / CAST(dm.dias_no_mes AS FLOAT)) *
+                CAST(dm.dias_no_mes AS FLOAT)
+            AS DECIMAL(10,2)) AS previsao_vendas
         FROM tbVendasDashboard v
         INNER JOIN MaxDatas md ON v.nmFilial = md.nmFilial
-        WHERE 
-            v.dtVenda >= @data_inicio
+        INNER JOIN DiasMes dm ON v.nmFilial = dm.nmFilial
+        WHERE
+            v.dtVenda >= CASE WHEN md.usarMesAtual = 1 THEN
+                                 CAST(CAST(YEAR(CAST(GETDATE() AS DATE)) AS VARCHAR(4)) + '-' + RIGHT('0' + CAST(MONTH(CAST(GETDATE() AS DATE)) AS VARCHAR(2)), 2) + '-01' AS DATE)
+                             ELSE
+                                 DATEADD(MONTH, -1, CAST(CAST(YEAR(CAST(GETDATE() AS DATE)) AS VARCHAR(4)) + '-' + RIGHT('0' + CAST(MONTH(CAST(GETDATE() AS DATE)) AS VARCHAR(2)), 2) + '-01' AS DATE))
+                        END
             AND v.dtVenda <= md.max_dtVenda
             AND v.vlVenda IS NOT NULL
-        GROUP BY v.nmFilial;
+        GROUP BY v.nmFilial, dm.dias_no_mes;
         '''
         cursor.execute(consulta)
         resultados = {}
@@ -1090,11 +1178,44 @@ def acumulo_vendas_periodo_ano_anterior_relatorio():
     try:
         cursor = conn.cursor()
         cursor.execute('''
-            WITH DiasValidos AS (
+            WITH dados_referencia AS (
+                SELECT 
+                    MONTH(CASE 
+                            WHEN EXISTS (
+                                SELECT 1 
+                                FROM tbVendasDashboard 
+                                WHERE YEAR(dtVenda) = YEAR(GETDATE())
+                                    AND MONTH(dtVenda) = 
+                                        CASE 
+                                            WHEN DAY(GETDATE()) = 1 THEN MONTH(DATEADD(MONTH, -1, GETDATE()))
+                                            ELSE MONTH(GETDATE())
+                                        END
+                                    AND vlVenda IS NOT NULL
+                            )
+                            THEN GETDATE()
+                            ELSE DATEADD(MONTH, -1, GETDATE())
+                        END) AS mes_referencia,
+                    YEAR(CASE 
+                            WHEN EXISTS (
+                                SELECT 1 
+                                FROM tbVendasDashboard 
+                                WHERE YEAR(dtVenda) = YEAR(GETDATE())
+                                    AND MONTH(dtVenda) = 
+                                        CASE 
+                                            WHEN DAY(GETDATE()) = 1 THEN MONTH(DATEADD(MONTH, -1, GETDATE()))
+                                            ELSE MONTH(GETDATE())
+                                        END
+                                    AND vlVenda IS NOT NULL
+                            )
+                            THEN GETDATE()
+                            ELSE DATEADD(MONTH, -1, GETDATE())
+                        END) AS ano_referencia
+            ),
+            DiasValidos AS (
                 SELECT DISTINCT DAY(dtVenda) AS dia, nmFilial
-                FROM tbVendasDashboard
+                FROM tbVendasDashboard, dados_referencia
                 WHERE 
-                    MONTH(dtVenda) = MONTH(GETDATE())
+                    MONTH(dtVenda) = dados_referencia.mes_referencia
                     AND YEAR(dtVenda) = YEAR(GETDATE())
                     AND dtVenda <= GETDATE()
                     AND vlVenda IS NOT NULL
@@ -1107,9 +1228,10 @@ def acumulo_vendas_periodo_ano_anterior_relatorio():
                 INNER JOIN DiasValidos d ON 
                     d.dia = DAY(v.dtVenda) AND
                     d.nmFilial = v.nmFilial
+                CROSS JOIN dados_referencia
                 WHERE 
-                    MONTH(v.dtVenda) = MONTH(GETDATE())
-                    AND YEAR(v.dtVenda) = YEAR(DATEADD(YEAR, -1, GETDATE()))
+                    MONTH(v.dtVenda) = dados_referencia.mes_referencia
+                    AND YEAR(v.dtVenda) = dados_referencia.ano_referencia - 1
                     AND v.vlVenda IS NOT NULL
                 GROUP BY v.nmFilial
             ),
@@ -1117,10 +1239,10 @@ def acumulo_vendas_periodo_ano_anterior_relatorio():
                 SELECT 
                     nmFilial,
                     SUM(vlVenda) AS total
-                FROM tbVendasDashboard
+                FROM tbVendasDashboard, dados_referencia
                 WHERE 
-                    MONTH(dtVenda) = MONTH(DATEADD(MONTH, -1, GETDATE()))
-                    AND YEAR(dtVenda) = YEAR(DATEADD(YEAR, -1, GETDATE()))
+                    MONTH(dtVenda) = dados_referencia.mes_referencia
+                    AND YEAR(dtVenda) = dados_referencia.ano_referencia - 1
                     AND vlVenda IS NOT NULL
                 GROUP BY nmFilial
             )
@@ -1133,7 +1255,7 @@ def acumulo_vendas_periodo_ano_anterior_relatorio():
                         COALESCE(a.total, 0)
                 END AS acumulo_vendas_ano_anterior
             FROM AcumuloAnoAnterior a
-            FULL OUTER JOIN AcumuloMesAnterior m ON a.nmFilial = m.nmFilial
+            FULL OUTER JOIN AcumuloMesAnterior m ON a.nmFilial = m.nmFilial;
         ''')
         return {row.nmFilial: row.acumulo_vendas_ano_anterior or 0 for row in cursor.fetchall()}
     except Exception as e:
@@ -1149,11 +1271,44 @@ def obter_acumulo_meta_ano_anterior_relatorio():
     try:
         cursor = conn.cursor()
         cursor.execute('''
-            WITH DiasValidos AS (
+            WITH dados_referencia AS (
+                SELECT 
+                    MONTH(CASE 
+                              WHEN EXISTS (
+                                  SELECT 1 
+                                  FROM tbVendasDashboard 
+                                  WHERE YEAR(dtVenda) = YEAR(GETDATE())
+                                    AND MONTH(dtVenda) = 
+                                        CASE 
+                                            WHEN DAY(GETDATE()) = 1 THEN MONTH(DATEADD(MONTH, -1, GETDATE()))
+                                            ELSE MONTH(GETDATE())
+                                        END
+                                    AND vlVenda IS NOT NULL
+                              )
+                              THEN GETDATE()
+                              ELSE DATEADD(MONTH, -1, GETDATE())
+                         END) AS mes_referencia,
+                    YEAR(CASE 
+                              WHEN EXISTS (
+                                  SELECT 1 
+                                  FROM tbVendasDashboard 
+                                  WHERE YEAR(dtVenda) = YEAR(GETDATE())
+                                    AND MONTH(dtVenda) = 
+                                        CASE 
+                                            WHEN DAY(GETDATE()) = 1 THEN MONTH(DATEADD(MONTH, -1, GETDATE()))
+                                            ELSE MONTH(GETDATE())
+                                        END
+                                    AND vlVenda IS NOT NULL
+                              )
+                              THEN GETDATE()
+                              ELSE DATEADD(MONTH, -1, GETDATE())
+                         END) AS ano_referencia
+            ),
+            DiasValidos AS (
                 SELECT DISTINCT DAY(dtVenda) AS dia, nmFilial
-                FROM tbVendasDashboard
+                FROM tbVendasDashboard, dados_referencia
                 WHERE 
-                    MONTH(dtVenda) = MONTH(GETDATE())
+                    MONTH(dtVenda) = dados_referencia.mes_referencia
                     AND YEAR(dtVenda) = YEAR(GETDATE())
                     AND dtVenda <= GETDATE()
                     AND vlVenda IS NOT NULL
@@ -1166,9 +1321,10 @@ def obter_acumulo_meta_ano_anterior_relatorio():
                 INNER JOIN DiasValidos d ON 
                     d.dia = DAY(v.dtVenda) AND
                     d.nmFilial = v.nmFilial
+                CROSS JOIN dados_referencia
                 WHERE 
-                    MONTH(v.dtVenda) = MONTH(GETDATE())
-                    AND YEAR(v.dtVenda) = YEAR(DATEADD(YEAR, -1, GETDATE()))
+                    MONTH(v.dtVenda) = dados_referencia.mes_referencia
+                    AND YEAR(v.dtVenda) = dados_referencia.ano_referencia - 1
                     AND v.vlVenda IS NOT NULL
                 GROUP BY v.nmFilial
             ),
@@ -1176,10 +1332,10 @@ def obter_acumulo_meta_ano_anterior_relatorio():
                 SELECT 
                     nmFilial,
                     SUM(vlVenda) AS total
-                FROM tbVendasDashboard
+                FROM tbVendasDashboard, dados_referencia
                 WHERE 
-                    MONTH(dtVenda) = MONTH(DATEADD(MONTH, -1, GETDATE()))
-                    AND YEAR(dtVenda) = YEAR(DATEADD(YEAR, -1, GETDATE()))
+                    MONTH(dtVenda) = dados_referencia.mes_referencia
+                    AND YEAR(dtVenda) = dados_referencia.ano_referencia - 1
                     AND vlVenda IS NOT NULL
                 GROUP BY nmFilial
             )
@@ -1192,7 +1348,7 @@ def obter_acumulo_meta_ano_anterior_relatorio():
                         COALESCE(a.total, 0) * 1.05
                 END AS acumulo_meta_ano_anterior
             FROM AcumuloAnoAnterior a
-            FULL OUTER JOIN AcumuloMesAnterior m ON a.nmFilial = m.nmFilial
+            FULL OUTER JOIN AcumuloMesAnterior m ON a.nmFilial = m.nmFilial;
         ''')
         return {row.nmFilial.strip().upper(): row.acumulo_meta_ano_anterior or 0 for row in cursor.fetchall()}
     except Exception as e:
@@ -1208,12 +1364,41 @@ def obter_acumulo_de_vendas_relatorio():
     try:
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT nmFilial, SUM(vlVenda) AS total
-            FROM tbVendasDashboard
-            WHERE 
-                YEAR(dtVenda) = CASE WHEN DAY(GETDATE()) = 1 THEN YEAR(DATEADD(MONTH, -1, GETDATE())) ELSE YEAR(GETDATE()) END
-                AND MONTH(dtVenda) = CASE WHEN DAY(GETDATE()) = 1 THEN MONTH(DATEADD(MONTH, -1, GETDATE())) ELSE MONTH(GETDATE()) END
-            GROUP BY nmFilial
+            WITH VendasMesAtual AS (
+                SELECT 
+                    nmFilial,
+                    SUM(vlVenda) AS acumulo_de_vendas
+                FROM dbo.tbVendasDashboard
+                WHERE 
+                    YEAR(dtVenda) = CASE 
+                        WHEN DAY(GETDATE()) = 1 THEN YEAR(DATEADD(MONTH, -1, GETDATE()))
+                        ELSE YEAR(GETDATE())
+                    END
+                    AND MONTH(dtVenda) = CASE 
+                        WHEN DAY(GETDATE()) = 1 THEN MONTH(DATEADD(MONTH, -1, GETDATE()))
+                        ELSE MONTH(GETDATE())
+                    END
+                GROUP BY nmFilial
+            ),
+            VendasMesAnterior AS (
+                SELECT 
+                    nmFilial,
+                    SUM(vlVenda) AS acumulo_de_vendas
+                FROM dbo.tbVendasDashboard
+                WHERE 
+                    YEAR(dtVenda) = YEAR(DATEADD(MONTH, -1, GETDATE()))
+                    AND MONTH(dtVenda) = MONTH(DATEADD(MONTH, -1, GETDATE()))
+                GROUP BY nmFilial
+            )
+            SELECT 
+                COALESCE(VMA.nmFilial, VMP.nmFilial) AS nmFilial,
+                COALESCE(VMA.acumulo_de_vendas, VMP.acumulo_de_vendas, 0) AS total
+            FROM 
+                VendasMesAtual VMA
+            FULL OUTER JOIN 
+                VendasMesAnterior VMP
+            ON VMA.nmFilial = VMP.nmFilial
+            ORDER BY nmFilial;
         ''')
         return {row.nmFilial: row.total or 0 for row in cursor.fetchall()}
     except:
