@@ -15,7 +15,10 @@ import pandas as pd
 from datetime import date
 from fpdf import FPDF
 from babel.numbers import format_currency
-
+import requests
+import json
+import re
+import base64
 
 try:
     lc.setlocale(lc.LC_ALL, 'pt_BR.UTF-8')
@@ -44,8 +47,6 @@ def pagina_nao_encontrada():
         st.switch_page("main.py")  
 
 # PÁGINA ATOS
-
-
 def paginaatos():
     verificar_autenticacao()
 
@@ -78,12 +79,35 @@ def paginaatos():
                 """,
                 unsafe_allow_html=True,
             )
+            
+            st.markdown("""
+            <style>
+            /* Estilizar todos os botões da sidebar */
+            section[data-testid="stSidebar"] button {
+                width: 100% !important;
+                height: 40px !important;
+                margin-bottom: 10px;
+                background-color: #1C1C1C;
+                color: white;
+                font-weight: bold;
+                border-radius: 8px;
+                border: none;
+                transition: background-color 0.3s ease;
+            }
+
+            /* Hover nos botões */
+            section[data-testid="stSidebar"] button:hover {
+                background-color: darkblue;
+            }
+            </style>
+            """, unsafe_allow_html=True)
+
 
             st.sidebar.header("Filtros")
             filiais = consultaSQL.obter_nmfilial()
             filial_selecionada = st.sidebar.selectbox("Selecione a Filial", filiais)
 
-            if st.sidebar.button("Selecionar Meses Anteriores"):
+            if st.sidebar.button("📅 Selecionar Meses Anteriores"):
                 st.session_state['pagina'] = 'meses_anterior'
                 st.rerun()
 
@@ -114,6 +138,10 @@ def paginaatos():
             
             if st.sidebar.button("🖨️ Gerar Relatório"):
                 st.session_state['dashboard_page'] = 'paginarelatoriocompleto'
+                st.rerun()
+            
+            if st.sidebar.button("🤖 Agente IA Atos"):
+                st.session_state['dashboard_page'] = 'paginaagenteia'
                 st.rerun()
                             
             # Fim sidebar
@@ -153,7 +181,7 @@ def paginaatos():
 
                 categorias = ["Meta do mês", "Previsão", "Acumulado meta", "Acumulado Vendas"]
                 valores = [meta_mes, previsao, acumulo_meta_ano_anterior, acumulo_de_vendas]
-                cores = ["darkgray", "darkblue", "darkred", "white"]
+                cores = ["darkgray", "darkblue", "darkred", "lightgray"]
 
                 fig = go.Figure()
                 
@@ -175,7 +203,7 @@ def paginaatos():
                     title=f"📊 Metas e previsões da {filial_selecionada}",
                     xaxis_title="",
                     yaxis_title="Valor (R$)",
-                    font=dict(color="white", size=14),
+                    font=dict(color="lightgray", size=14),
                     plot_bgcolor="rgba(0,0,0,0)",
                     paper_bgcolor="rgba(0,0,0,0)",
                     height=550,
@@ -227,11 +255,11 @@ def paginaatos():
                     title="% Crescimento",
                     xaxis_title="",
                     yaxis_title="Valor %",
-                    font=dict(color="white", size=14),
+                    font=dict(color="lightgray", size=14),
                     plot_bgcolor="rgba(0,0,0,0)",
                     paper_bgcolor="rgba(0,0,0,0)",
-                    height=450,
-                    width=450,
+                    height=350,
+                    width=350,
                     margin=dict(t=100, b=50, l=50, r=50), 
                     yaxis=dict(
                         range=[y_min - y_range_margin, y_max + y_range_margin],
@@ -318,7 +346,7 @@ def paginaatos():
                     title=f"📊 Vendas nos últimos 12 meses - {filial_selecionada}",
                     xaxis_title="Meses",
                     yaxis_title="Valor das Vendas (R$)",
-                    font=dict(color="white", size=14),
+                    font=dict(color="lightgray", size=14),
                     plot_bgcolor="rgba(0,0,0,0)",
                     paper_bgcolor="rgba(0,0,0,0)",
                     yaxis_tickformat="R$ ,.2f",
@@ -428,7 +456,7 @@ def paginaatos():
 
             st.subheader("📍 Mapa das filiais - Vendas Acumuladas Mês")
             st.plotly_chart(fig_mapa, use_container_width=True)
-
+                    
         pagina_principal()
     else:
         def pagina_meses_anterior():
@@ -442,6 +470,28 @@ def paginaatos():
                 """,
                 unsafe_allow_html=True,
             )
+
+            st.markdown("""
+                <style>
+                /* Estilizar todos os botões da sidebar */
+                section[data-testid="stSidebar"] button {
+                    width: 100% !important;
+                    height: 40px !important;
+                    margin-bottom: 10px;
+                    background-color: #1C1C1C;
+                    color: white;
+                    font-weight: bold;
+                    border-radius: 8px;
+                    border: none;
+                    transition: background-color 0.3s ease;
+                }
+
+                /* Hover nos botões */
+                section[data-testid="stSidebar"] button:hover {
+                    background-color: darkblue;
+                }
+                </style>
+            """, unsafe_allow_html=True)
 
             st.sidebar.header("Filtros")
             filiais = consultaSQL.obter_nmfilial()
@@ -505,7 +555,7 @@ def paginaatos():
             left_co, cent_co, last_co = st.columns(3)
             with cent_co:
                 st.image('logoatos.png', width=500)
-            st.write(f"# Relatório de venda da {filial_selecionada}")
+            st.write(f"# Dashboard de venda da {filial_selecionada}")
             # Fim cabeçalho
 
             total_vendas = consultaSQL.obter_vendas_ano_anterior_mes_anterior(filial_selecionada, mes_final, ano_final - 1)
@@ -566,7 +616,7 @@ def paginaatos():
                     title=f"📊 Mês: {mes_selecionado}",
                     xaxis_title="",
                     yaxis_title="Valor (R$)",
-                    font=dict(color="white", size=14),
+                    font=dict(color="lightgray", size=14),
                     plot_bgcolor="rgba(0,0,0,0)",
                     paper_bgcolor="rgba(0,0,0,0)",
                     height=550,
@@ -618,7 +668,7 @@ def paginaatos():
                     title="% Crescimento",
                     xaxis_title="",
                     yaxis_title="Valor %",
-                    font=dict(color="white", size=14),
+                    font=dict(color="lightgray", size=14),
                     plot_bgcolor="rgba(0,0,0,0)",
                     paper_bgcolor="rgba(0,0,0,0)",
                     height=450, 
@@ -707,7 +757,7 @@ def paginaatos():
                     title=f"📊 Vendas - Evolução até {mes_final:02d}/{ano} - {filial}",
                     xaxis_title="Meses",
                     yaxis_title="Valor das Vendas (R$)",
-                    font=dict(color="white", size=14),
+                    font=dict(color="lightgray", size=14),
                     plot_bgcolor="rgba(0,0,0,0)",
                     paper_bgcolor="rgba(0,0,0,0)",
                     yaxis_tickformat="R$ ,.2f",
@@ -744,8 +794,17 @@ def paginaatos():
         st.session_state.page = None
         st.rerun()
 
+#Página relatório 
 def paginarelatoriocompleto():
     verificar_autenticacao()
+    
+    st.markdown("""
+    <style>
+    [data-testid="stSidebar"] {
+        background-color: #800000; 
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
     def formatar_brasileiro(valor):
         try:
@@ -886,15 +945,30 @@ def paginarelatoriocompleto():
     with cent_co:
         st.image('logoatos.png', width=500)
     st.markdown(f"<h2 style='text-align: center;'>📈 Relatório de Vendas - {data_venda.strftime('%d/%m/%Y')}</h2>", unsafe_allow_html=True)
+    st.sidebar.header("Menu")
     st.markdown("""
         <style>
-        [data-testid="stSidebar"] {
-            background-color: #800000; 
+        /* Estilizar todos os botões da sidebar */
+        section[data-testid="stSidebar"] button {
+            width: 100% !important;
+            height: 40px !important;
+            margin-bottom: 10px;
+            background-color: #1C1C1C;
+            color: white;
+            font-weight: bold;
+            border-radius: 8px;
+            border: none;
+            transition: background-color 0.3s ease;
+        }
+
+        /* Hover nos botões */
+        section[data-testid="stSidebar"] button:hover {
+            background-color: darkblue;
         }
         </style>
         """, unsafe_allow_html=True)
 
-    st.sidebar.header("Menu")
+    
     if st.sidebar.button("Voltar Para Mês Atual"):
         st.session_state['dashboard_page'] = 'paginaatos'
         st.rerun()
@@ -923,6 +997,264 @@ def paginarelatoriocompleto():
                 with open(arquivo_pdf, "rb") as f:
                     st.download_button("⬇️ Baixar PDF", f, file_name=arquivo_pdf, mime="application/pdf")
                 os.remove(arquivo_pdf)
+
+    #pagina Agente IA
+
+#Página IA 
+def paginaagenteia():
+    verificar_autenticacao()
+    
+    st.set_page_config(
+    page_title="Assistente Atos Capital",
+    page_icon="🤖",
+    layout="wide"
+    )
+
+    st.markdown("""
+    <style>
+        .message-container {
+            display: flex;
+            margin-bottom: 12px;
+        }
+        .user-message {
+            background-color: #DCF8C6;
+            color: #000;
+            border-radius: 15px 15px 0 15px;
+            padding: 10px 15px;
+            margin-left: auto;
+            max-width: 70%;
+            box-shadow: 0 1px 1px rgba(0,0,0,0.1);
+        }
+        .assistant-message {
+            background-color: #ECE5DD;
+            color: #000;
+            border-radius: 15px 15px 15px 0;
+            padding: 10px 15px;
+            margin-right: auto;
+            max-width: 70%;
+            box-shadow: 0 1px 1px rgba(0,0,0,0.1);
+        }
+        .sender-name {
+            font-size: 0.8em;
+            font-weight: bold;
+            margin-bottom: 3px;
+        }
+        .chat-input {
+            position: fixed;
+            bottom: 20px;
+            width: 80%;
+        }
+        .loading-dots {
+            display: inline-block;
+        }
+        .loading-dots:after {
+            content: ' .';
+            animation: dots 1.5s steps(5, end) infinite;
+        }
+        a {
+            color: #0066cc;
+            text-decoration: underline;
+        }
+        [data-testid="stSidebar"] {
+            background-color: #800000; 
+        }
+        .cover-glow {
+            width: 80%;
+            height: auto;
+            padding: 3px;
+            box-shadow: 
+                0 0 5px #a8d8ff,
+                0 0 10px #7ac4ff,
+                0 0 15px #4db0ff,
+                0 0 20px #1e9cff,
+                0 0 25px #0088ff,
+                0 0 30px #0077dd,
+                0 0 35px #0066bb;
+            position: relative;
+            z-index: -1;
+            border-radius: 45px;
+            display: block;       
+            margin: 0 auto;
+        }
+        @keyframes dots {
+            0%, 20% {
+                color: rgba(0,0,0,0);
+                text-shadow: .25em 0 0 rgba(0,0,0,0), .5em 0 0 rgba(0,0,0,0);
+            }
+            40% {
+                color: black;
+                text-shadow: .25em 0 0 rgba(0,0,0,0), .5em 0 0 rgba(0,0,0,0);
+            }
+            60% {
+                text-shadow: .25em 0 0 black, .5em 0 0 rgba(0,0,0,0);
+            }
+            80%, 100% {
+                text-shadow: .25em 0 0 black, .5em 0 0 black;
+            }
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Função para converter URLs em links clicáveis
+    def url_to_link(text):
+        url_pattern = re.compile(r'https?://\S+|www\.\S+')
+        
+        def replace_with_link(match):
+            url = match.group(0)
+            if not url.startswith(('http://', 'https://')):
+                url = 'http://' + url
+            return f'<a href="{url}" target="_blank">{url}</a>'
+        
+        return url_pattern.sub(replace_with_link, text)
+
+    # Função para converter imagem para base64
+    def img_to_base64(img_path):
+        with open(img_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode('utf-8')
+
+    # Título da aplicação
+    left_co, cent_co, last_co = st.columns(3)
+    with cent_co:
+        st.image('logoatos.png', width=500)
+    st.markdown("""
+        <style>
+        [data-testid="stSidebar"] {
+            background-color: #800000; 
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+    st.header("💬 Conversa com Atos")
+
+    # Inicialização do histórico
+    if 'historico' not in st.session_state:
+        st.session_state.historico = []
+    if 'aguardando_resposta' not in st.session_state:
+        st.session_state.aguardando_resposta = False  
+
+    # Sidebar - Imagem com efeito glow
+    img_path = "logoia.png"
+    img_base64 = img_to_base64(img_path)
+    if img_base64:
+        st.sidebar.markdown(
+            f'<img src="data:image/png;base64,{img_base64}" class="cover-glow">',
+            unsafe_allow_html=True,
+        )
+
+    # Sidebar - Nome
+    st.sidebar.markdown("<div style='margin-top: 20px; text-align: center; color: #F8F8FF; font-size: 30px; font-weight: bold; margin-bottom: 20px;'>🤖 Theo Agente IA</div>", unsafe_allow_html=True)
+    
+    # Função para enviar ao webhook
+    def enviar_para_webhook(mensagem):
+        try:
+            response = requests.post(
+                "https://n8n-n8n.zofbat.easypanel.host/webhook/pergunta-whatsapp",
+                headers={"Content-Type": "application/json"},
+                data=json.dumps({"pergunta": mensagem}),
+                timeout=300
+            )
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            st.error(f"Erro ao conectar com o webhook: {str(e)}")
+            return None
+
+    # Exibir histórico de mensagens
+    for mensagem in st.session_state.historico:
+        conteudo = url_to_link(mensagem['conteudo']) if isinstance(mensagem['conteudo'], str) else str(mensagem['conteudo'])
+        
+        if mensagem["autor"] == "Atos Capital IA":
+            st.markdown(f"""
+            <div class="message-container">
+                <div class="assistant-message">
+                    <div class="sender-name">Atos Capital IA</div>
+                    {conteudo}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown(f"""
+            <div class="message-container">
+                <div class="user-message">
+                    <div class="sender-name">Você</div>
+                    {conteudo}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    # Input do usuário
+    if prompt := st.chat_input("Digite sua mensagem...", disabled=st.session_state.aguardando_resposta):
+        st.session_state.historico.append({
+            "autor": "Usuário",
+            "conteudo": prompt
+        })
+        
+        st.session_state.historico.append({
+            "autor": "Atos Capital IA",
+            "conteudo": "<div class='loading-dots'>Processando sua resposta, aguarde</div>",
+            "loading": True
+        })
+        
+        st.session_state.aguardando_resposta = True
+        st.rerun()
+
+    # Processamento da resposta
+    if st.session_state.aguardando_resposta:
+        ultima_mensagem_usuario = next(
+            (msg for msg in reversed(st.session_state.historico) if msg["autor"] == "Usuário"),
+            None
+        )
+        
+        if ultima_mensagem_usuario:
+            resposta_webhook = enviar_para_webhook(ultima_mensagem_usuario["conteudo"])
+            
+            st.session_state.historico = [msg for msg in st.session_state.historico if not msg.get("loading")]
+            
+            if resposta_webhook:
+                resposta = resposta_webhook.get("resposta") or resposta_webhook.get("output") or resposta_webhook.get("message") or str(resposta_webhook)
+                st.session_state.historico.append({
+                    "autor": "Atos Capital IA",
+                    "conteudo": resposta
+                })
+            else:
+                st.session_state.historico.append({
+                    "autor": "Atos Capital IA",
+                    "conteudo": "Desculpe, não consegui processar sua solicitação no momento, envie a pergunta novamente."
+                })
+        
+        st.session_state.aguardando_resposta = False
+        st.rerun()
+
+    st.markdown("""
+    <style>
+    /* Estilizar todos os botões da sidebar */
+    section[data-testid="stSidebar"] button {
+        width: 100% !important;
+        height: 40px !important;
+        margin-bottom: 10px;
+        background-color: #1C1C1C;
+        color: white;
+        font-weight: bold;
+        border-radius: 8px;
+        border: none;
+        transition: background-color 0.3s ease;
+    }
+
+    /* Hover nos botões */
+    section[data-testid="stSidebar"] button:hover {
+        background-color: darkblue;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    if st.sidebar.button("Voltar Para Mês Atual"):
+        st.session_state['dashboard_page'] = 'paginaatos'
+        st.rerun()
+        
+    if st.sidebar.button("🚪 Sair"):
+        st.session_state.authenticated = False
+        st.session_state.page = None
+        st.rerun()
 
 # PÁGINA UNIT
 

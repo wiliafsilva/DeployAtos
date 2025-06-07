@@ -5,11 +5,11 @@ import importlib
 def conexaobanco():
     try:
         conn = mysql.connector.connect(
-            host="maglev.proxy.rlwy.net",
-            port=10175,
-            user="root",
-            password="DrMCLnXdmCSDqBsJSiZzXmfaIxHvMkkL",
-            database="railway"
+            host="24.144.83.133",
+            port=3306,
+            user="atos",
+            password="atoscapital",
+            database="atoscapital"
         )
         return conn
     except mysql.connector.Error as e:
@@ -106,7 +106,7 @@ def carregar_pagina(nome_pagina):
 def main():
     if "authenticated" not in st.session_state:
         st.session_state.authenticated = False
-
+    
     if not st.session_state.authenticated:
         arealogin()
     else:

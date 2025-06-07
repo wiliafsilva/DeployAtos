@@ -15,14 +15,14 @@ def verificar_permissao():
         st.session_state.page = None
         st.rerun()
 
-def conexaobanco():
+def conectarbanco():
     try:
         conn = mysql.connector.connect(
-            host="maglev.proxy.rlwy.net",
-            port=10175,
-            user="root",
-            password="DrMCLnXdmCSDqBsJSiZzXmfaIxHvMkkL",
-            database="railway"
+            host="24.144.83.133",
+            port=3306,
+            user="atos",
+            password="atoscapital",
+            database="atoscapital"
         )
         return conn
     except mysql.connector.Error as e:
@@ -44,7 +44,7 @@ def puxarusuarios():
     if conexao:
         cursor = conexao.cursor()
         cursor.execute("""
-            SELECT u.id, u.`Nome`, u.usuario, u.senha, u.numero, u.permissao, 
+            SELECT u.id, u.`Nome`, u.usuario, u.senha, u.numero, u.email, u.permissao, 
                    u.grupo_id, g.NomeGrupo, g.codigo
             FROM usuarios u
             LEFT JOIN grupoempresa g ON u.grupo_id = g.id
@@ -55,7 +55,7 @@ def puxarusuarios():
         return usuarios
     return []
 
-def atualizacaousuarios(user_id, nome, usuario, senha, numero, permissao, grupo_id):
+def atualizacaousuarios(user_id, nome, usuario, senha, numero, email, permissao, grupo_id):
     conexao = conectarbanco()
     if conexao:
         cursor = conexao.cursor()
@@ -66,6 +66,9 @@ def atualizacaousuarios(user_id, nome, usuario, senha, numero, permissao, grupo_
         cursor.execute("SELECT id FROM usuarios WHERE numero = %s AND id != %s", (numero, user_id))
         numero_existente = cursor.fetchone()
 
+        cursor.execute("SELECT id FROM usuarios WHERE email = %s AND id != %s", (email, user_id))
+        email_existente = cursor.fetchone()
+
         if usuario_existente:
             st.error("Nome de usuário já está sendo utilizado por outro usuário.")
             return False
@@ -73,10 +76,14 @@ def atualizacaousuarios(user_id, nome, usuario, senha, numero, permissao, grupo_
         if numero_existente:
             st.error("Número já está sendo utilizado por outro usuário.")
             return False
+            
+        if email_existente:
+            st.error("Email já está sendo utilizado por outro usuário.")
+            return False
 
         cursor.execute(
-            "UPDATE usuarios SET `Nome` = %s, usuario = %s, senha = %s, numero = %s, permissao = %s, grupo_id = %s WHERE id = %s",
-            (nome, usuario, senha, numero, permissao, grupo_id, user_id)
+            "UPDATE usuarios SET `Nome` = %s, usuario = %s, senha = %s, numero = %s, email = %s, permissao = %s, grupo_id = %s WHERE id = %s",
+            (nome, usuario, senha, numero, email, permissao, grupo_id, user_id)
         )
         conexao.commit()
         conexao.close()
@@ -92,7 +99,7 @@ def excluirusuario(user_id):
         conexao.close()
         st.success("Usuário excluído com sucesso!")
 
-def novousuario(nome, usuario, senha, numero, permissao, grupo_id):
+def novousuario(nome, usuario, senha, numero, email, permissao, grupo_id):
     conexao = conectarbanco()
     if conexao:
         cursor = conexao.cursor()
@@ -102,6 +109,9 @@ def novousuario(nome, usuario, senha, numero, permissao, grupo_id):
 
         cursor.execute("SELECT COUNT(*) FROM usuarios WHERE numero = %s", (numero,))
         count_numero = cursor.fetchone()[0]
+        
+        cursor.execute("SELECT COUNT(*) FROM usuarios WHERE email = %s", (email,))
+        count_email = cursor.fetchone()[0]
 
         if count_usuario > 0:
             st.error("Nome de usuário já está sendo utilizado.")
@@ -110,10 +120,14 @@ def novousuario(nome, usuario, senha, numero, permissao, grupo_id):
         if count_numero > 0:
             st.error("Número já está sendo utilizado.")
             return False
+            
+        if count_email > 0:
+            st.error("Email já está sendo utilizado.")
+            return False
 
         cursor.execute(
-            "INSERT INTO usuarios (`Nome`, usuario, senha, numero, permissao, grupo_id) VALUES (%s, %s, %s, %s, %s, %s)",
-            (nome, usuario, senha, numero, permissao, grupo_id)
+            "INSERT INTO usuarios (`Nome`, usuario, senha, numero, email, permissao, grupo_id) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            (nome, usuario, senha, numero, email, permissao, grupo_id)
         )
         conexao.commit()
         conexao.close()
@@ -199,6 +213,7 @@ def formularionovousuario():
         usuario = st.text_input("Usuário", max_chars=20)
         senha = st.text_input("Senha", type="password", max_chars=30)
         numero = st.text_input("Número", max_chars=15)
+        email = st.text_input("Email", max_chars=50)
         permissao = st.radio("Permissão", ["adm", "cliente"], horizontal=True)
         
         if grupos:
@@ -215,9 +230,9 @@ def formularionovousuario():
         submit_button = st.form_submit_button(label="Adicionar Usuário", use_container_width=True)
 
         if submit_button:
-            if not all([nome, usuario, senha, numero]):
+            if not all([nome, usuario, senha, numero, email]):
                 st.error("Todos os campos são obrigatórios!")
-            elif novousuario(nome, usuario, senha, numero, permissao, grupo_id):
+            elif novousuario(nome, usuario, senha, numero, email, permissao, grupo_id):
                 st.session_state.mensagem = "Novo usuário cadastrado com sucesso!"
                 st.session_state.novousuario = False
                 st.rerun()
@@ -232,15 +247,16 @@ def formularioeditarusuario(user):
     st.subheader(f"Editar Usuário: {user[1]}")
 
     grupos = puxargrupos()
-    grupo_atual_id = user[6] if len(user) > 6 and user[6] else None
+    grupo_atual_id = user[7] if len(user) > 7 and user[7] else None
 
     with st.form(key=f"editarusuario{user[0]}"):
         nome = st.text_input("Nome", value=user[1], max_chars=50)
         usuario = st.text_input("Usuário", value=user[2], max_chars=20)
         senha = st.text_input("Senha", value=user[3], type="password", max_chars=30)
         numero = st.text_input("Número", value=user[4], max_chars=15)
+        email = st.text_input("Email", value=user[5] if len(user) > 5 else "", max_chars=50)
         permissao = st.radio("Permissão", ["adm", "cliente"], 
-                           index=0 if user[5] == "adm" else 1,
+                           index=0 if user[6] == "adm" else 1,
                            horizontal=True)
         
         if grupos:
@@ -268,9 +284,9 @@ def formularioeditarusuario(user):
         submit_button = st.form_submit_button(label="Atualizar Usuário", use_container_width=True)
 
         if submit_button:
-            if not all([nome, usuario, senha, numero]):
+            if not all([nome, usuario, senha, numero, email]):
                 st.error("Todos os campos são obrigatórios!")
-            elif atualizacaousuarios(user[0], nome, usuario, senha, numero, permissao, grupo_id):
+            elif atualizacaousuarios(user[0], nome, usuario, senha, numero, email, permissao, grupo_id):
                 st.session_state.mensagem = "Usuário atualizado com sucesso!"
                 st.session_state.editar_usuario = None
                 st.rerun()
@@ -340,11 +356,14 @@ def listarusuarios():
             
             col1, col2 = st.columns(2)
             col1.markdown(f"**Número:** `{user[4]}`")
-            col2.markdown(f"**Permissão:** `{user[5]}`")
+            col2.markdown(f"**Email:** `{user[5] if len(user) > 5 and user[5] else 'N/A'}`")
             
             col1, col2 = st.columns(2)
-            col1.markdown(f"**Grupo ID:** `{user[6] if user[6] else 'NULL'}`")
-            col2.markdown(f"**Grupo:** `{user[7] if user[7] else 'NULL'}`")
+            col1.markdown(f"**Permissão:** `{user[6]}`")
+            col2.markdown(f"**Grupo ID:** `{user[7] if len(user) > 7 and user[7] else 'NULL'}`")
+            
+            col1, col2 = st.columns(2)
+            col1.markdown(f"**Grupo:** `{user[8] if len(user) > 8 and user[8] else 'NULL'}`")
             
             btn_col1, btn_col2 = st.columns(2)
             
