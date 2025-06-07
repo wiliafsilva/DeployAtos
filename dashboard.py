@@ -671,8 +671,8 @@ def paginaatos():
                     font=dict(color="lightgray", size=14),
                     plot_bgcolor="rgba(0,0,0,0)",
                     paper_bgcolor="rgba(0,0,0,0)",
-                    height=450, 
-                    width=450,
+                    height=350, 
+                    width=350,
                     margin=dict(t=100, b=50, l=50, r=50),
                     yaxis=dict(
                         range=[y_min - y_range_margin, y_max + y_range_margin],
