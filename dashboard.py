@@ -1124,7 +1124,7 @@ def paginaagenteia():
         </style>
         """, unsafe_allow_html=True)
 
-    st.header("💬 Conversa com Atos")
+    st.header("💬 Conversando com Theo")
 
     # Inicialização do histórico
     if 'historico' not in st.session_state:
