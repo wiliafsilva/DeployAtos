@@ -798,12 +798,33 @@ def paginaatos():
 def paginarelatoriocompleto():
     verificar_autenticacao()
     
+    st.set_page_config(page_title="Relatório de Vendas", page_icon="📈", layout="wide") 
     st.markdown("""
     <style>
     [data-testid="stSidebar"] {
         background-color: #800000; 
     }
     </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+        <style>
+        section[data-testid="stSidebar"] button {
+            width: 100% !important;
+            height: 40px !important;
+            margin-bottom: 10px;
+            background-color: #1C1C1C;
+            color: white;
+            font-weight: bold;
+            border-radius: 8px;
+            border: none;
+            transition: background-color 0.3s ease;
+        }
+
+        section[data-testid="stSidebar"] button:hover {
+            background-color: darkblue;
+        }
+        </style>
     """, unsafe_allow_html=True)
 
     def formatar_brasileiro(valor):
@@ -816,6 +837,8 @@ def paginarelatoriocompleto():
         try:
             if value is None:
                 return 0.0
+            if isinstance(value, str) and '%' in value:
+                value = value.replace('%', '')
             value = float(value)
             if value == float("inf") or value == float("-inf") or pd.isna(value):
                 return 0.0
@@ -823,47 +846,48 @@ def paginarelatoriocompleto():
         except (ZeroDivisionError, ValueError, TypeError):
             return 0.0
 
-    @st.cache_data
-    def gerar_dataframe_relatorio():
-        colunas = [
-            "FILIAL", "VENDAS 2024", "META MÊS", "PREVISÃO", "ACUM. 2024",
-            "ACUM. META", "ACUM. VENDAS", "VENDAS DO DIA", "CRESC. 2025", "CRESC. META"
-        ]
+    def valor_para_float(valor_str):
+        try:
+            if isinstance(valor_str, str):
+                valor_str = valor_str.replace('R$ ', '').strip()
+                valor_str = re.sub(r'\.(?=\d{3}(?:[.,]))', '', valor_str)  
+                valor_str = valor_str.replace(',', '.')
+            return float(valor_str)
+        except:
+            return 0.0
 
-        filiais = consultaSQL.obter_nmfilial_relatorio()
-        vendas_2024 = consultaSQL.obter_vendas_ano_anterior_relatorio()
-        meta_mes = consultaSQL.obter_meta_mes_relatorio()
-        previsao = consultaSQL.obter_previsao_vendas_relatorio()
-        acum_2024 = consultaSQL.acumulo_vendas_periodo_ano_anterior_relatorio()
-        acum_meta = consultaSQL.obter_acumulo_meta_ano_anterior_relatorio()
-        acum_vendas = consultaSQL.obter_acumulo_de_vendas_relatorio()
-        vendas_dia = consultaSQL.obter_ultima_venda_com_valor_relatorio()
-        cresc_2025 = consultaSQL.obter_percentual_de_crescimento_atual_relatorio()
-        cresc_meta = consultaSQL.obter_percentual_crescimento_meta_relatorio()
-
-        dados = []
-        for filial in filiais:
-            try:
-                row = {
-                    "FILIAL": filial,
-                    "VENDAS 2024": vendas_2024.get(filial, 0),
-                    "META MÊS": meta_mes.get(filial, 0),
-                    "PREVISÃO": previsao.get(filial, 0),
-                    "ACUM. 2024": acum_2024.get(filial.strip().upper(), 0),
-                    "ACUM. META": acum_meta.get(filial.strip().upper(), 0),
-                    "ACUM. VENDAS": acum_vendas.get(filial, 0),
-                    "VENDAS DO DIA": vendas_dia.get(filial, (0, None))[0],
-                    "CRESC. 2025": safe_percent(cresc_2025.get(filial)),
-                    "CRESC. META": safe_percent(cresc_meta.get(filial))
-                }
-                dados.append(row)
-            except Exception as e:
-                print(f"Erro na filial {filial}: {e}")
-
-        return pd.DataFrame(dados, columns=colunas)
+    def obter_dados_relatorio(data_selecionada):
+        df = consultaSQL.obter_relatorio_vendas(data_selecionada)
+        
+        if df is None:
+            st.error("Erro ao obter dados do relatório. Verifique a conexão com o banco de dados.")
+            return pd.DataFrame()
+        
+        df = df.rename(columns={
+            'nmFilial': 'FILIAL',
+            'vendas_2024': 'VENDAS 2024',
+            'meta_mes': 'META MÊS',
+            'previsao_vendas': 'PREVISÃO',
+            'acumulo_2024': 'ACUM. 2024',
+            'acumulo_meta': 'ACUM. META',
+            'acumulado_vendas': 'ACUM. VENDAS',
+            'ultima_venda_valor': 'VENDAS DO DIA',
+            'crescimento_vs_ano_anterior': 'CRESC. 2025',
+            'crescimento_vs_meta': 'CRESC. META'
+        })
+        
+        for col in df.columns:
+            if col != 'FILIAL':
+                if 'CRESC' in col:
+                    df[col] = df[col].astype(str).str.replace('%', '').str.replace(',', '.').astype(float)
+                else:
+                    df[col] = df[col].apply(valor_para_float)
+        
+        return df
 
     def exportar_para_excel(df, data_venda):
-        nome_arquivo = f"Relatorio_Meta_Venda_{data_venda.strftime('%d-%m-%Y')}.xlsx"
+        data_formatada = data_ultima_venda.strftime('%d-%m')
+        nome_arquivo = f"Relatorio_de_Venda_{data_formatada}.xlsx"
         with pd.ExcelWriter(nome_arquivo, engine='xlsxwriter') as writer:
             df.to_excel(writer, sheet_name='Relatório', index=False)
             workbook = writer.book
@@ -887,11 +911,14 @@ def paginarelatoriocompleto():
         return nome_arquivo
 
     def gerar_pdf(df, data_venda):
+        data_atual = datetime.now()
         pdf = FPDF(orientation='L', unit='mm', format='A4')
         pdf.add_page()
         pdf.set_font("Courier", "B", 12)
-        data_formatada = data_venda.strftime('%d/%m/%Y')
-        pdf.cell(0, 10, f"Relatório de Meta de Vendas - {data_formatada}", ln=True, align="C")
+        pdf.cell(0, 10, f"Relatório de vendas emitido em - {data_atual.strftime('%d/%m/%Y')}", ln=True, align="C")
+        data_exibida = data_venda - pd.Timedelta(days=1)
+        pdf.set_font("Courier", "", 10)
+        pdf.cell(0, 10, f"Relatório referente às vendas do dia - {data_formatada}", ln=True, align="C")
         pdf.set_font("Courier", "B", 8)
         colunas = list(df.columns)
         larguras = [35, 27, 27, 27, 27, 27, 27, 27, 22, 22]
@@ -912,7 +939,7 @@ def paginarelatoriocompleto():
                     valor_formatado = formatar_brasileiro(valor)
                 pdf.cell(larguras[i], 6, valor_formatado[:22], border=1, align='C')
             pdf.ln()
-        nome_pdf = f"Relatorio_Meta_Venda_{data_venda.strftime('%d-%m-%Y')}.pdf"
+        nome_pdf = f"Relatorio_de_Venda_{data_ultima_venda.strftime('%d-%m-%Y')}.pdf"
         pdf.output(nome_pdf)
         return nome_pdf
 
@@ -925,78 +952,77 @@ def paginarelatoriocompleto():
                 df_formatado[col] = df[col].map(formatar_brasileiro)
         return df_formatado
 
-    df = gerar_dataframe_relatorio()
+    # Sidebar com seleção de data
+    with st.sidebar:
+        st.header("Menu")
+        
+        data_default = date.today()
+        
+        if 'data_selecionada' in st.session_state:
+            data_default = st.session_state.data_selecionada
+        
+        data_selecionada = st.date_input(
+            "Selecione a data:",
+            value=data_default,
+            max_value=date.today(),
+            format="DD/MM/YYYY"
+        ) 
+        
+        st.session_state.data_selecionada = data_selecionada
+        
+        if st.button("Voltar Para Mês Atual"):
+            st.session_state['dashboard_page'] = 'paginaatos'
+            st.rerun()
+        if st.button("🚪 Sair"):    
+            st.session_state.authenticated = False
+            st.session_state.page = None
+            st.rerun()
 
-    # Determina a data da última venda
-    data_venda = None
-    vendas_dia = consultaSQL.obter_ultima_venda_com_valor_relatorio()
-    for filial in consultaSQL.obter_nmfilial_relatorio():
-        try:
-            info = vendas_dia.get(filial)
-            if info and len(info) > 1:
-                data_venda = pd.to_datetime(info[1]).date()
-                break
-        except:
-            continue
-    if not data_venda:
-        data_venda = date.today()
+    # Obtém os dados usando o módulo importar
+    df = obter_dados_relatorio(data_selecionada)
 
-    left_co, cent_co, last_co = st.columns(3)
+    data_atual = datetime.now()
+
+    left_co, cent_co, last_co = st.columns(3) 
     with cent_co:
         st.image('logoatos.png', width=500)
-    st.markdown(f"<h2 style='text-align: center;'>📈 Relatório de Vendas - {data_venda.strftime('%d/%m/%Y')}</h2>", unsafe_allow_html=True)
-    st.sidebar.header("Menu")
-    st.markdown("""
-        <style>
-        /* Estilizar todos os botões da sidebar */
-        section[data-testid="stSidebar"] button {
-            width: 100% !important;
-            height: 40px !important;
-            margin-bottom: 10px;
-            background-color: #1C1C1C;
-            color: white;
-            font-weight: bold;
-            border-radius: 8px;
-            border: none;
-            transition: background-color 0.3s ease;
-        }
 
-        /* Hover nos botões */
-        section[data-testid="stSidebar"] button:hover {
-            background-color: darkblue;
-        }
-        </style>
-        """, unsafe_allow_html=True)
+    st.markdown(
+        f"<h2 style='text-align: center;'>📈 Relatório de vendas emitido em - {data_atual.strftime('%d/%m/%Y')}</h2>",
+        unsafe_allow_html=True
+    )
 
-    
-    if st.sidebar.button("Voltar Para Mês Atual"):
-        st.session_state['dashboard_page'] = 'paginaatos'
-        st.rerun()
-    if st.sidebar.button("🚪 Sair"):    
-        st.session_state.authenticated = False
-        st.session_state.page = None
-        st.rerun()
+    df = obter_dados_relatorio(data_selecionada)
 
-    df_formatado = formatar_dataframe_para_exibicao(df)
-    st.dataframe(df_formatado.set_index(pd.Index(range(1, len(df_formatado) + 1))), use_container_width=True, height=635)
+    data_ultima_venda = consultaSQL.obter_data_ultima_venda(data_selecionada)
 
-    espaco1, col_botoes, espaco2 = st.columns([1, 2, 1])
-    with col_botoes:
-        col_excel, col_pdf = st.columns([1, 1])
-        with col_excel:
-            if st.button("📊 Gerar Excel"):
-                arquivo_excel = exportar_para_excel(df, data_venda)
-                st.success("✅ Excel gerado com sucesso.")
-                with open(arquivo_excel, "rb") as f:
-                    st.download_button("⬇️ Baixar Excel", f, file_name=arquivo_excel, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                os.remove(arquivo_excel)
-        with col_pdf:
-            if st.button("📄 Gerar PDF"):
-                arquivo_pdf = gerar_pdf(df, data_venda)
-                st.success("✅ PDF gerado com sucesso.")
-                with open(arquivo_pdf, "rb") as f:
-                    st.download_button("⬇️ Baixar PDF", f, file_name=arquivo_pdf, mime="application/pdf")
-                os.remove(arquivo_pdf)
+    data_formatada = data_ultima_venda.strftime('%d/%m/%Y') if data_ultima_venda is not None else "N/D"
+
+    st.markdown(f"<h3> Relatório referente às vendas do dia - {data_formatada}</h3>", unsafe_allow_html=True)
+
+    if not df.empty:
+        df_formatado = formatar_dataframe_para_exibicao(df)
+        st.dataframe(df_formatado.set_index(pd.Index(range(1, len(df_formatado) + 1))), use_container_width=True, height=635)
+
+        espaco1, col_botoes, espaco2 = st.columns([1, 2, 1])
+        with col_botoes:
+            col_excel, col_pdf = st.columns([1, 1])
+            with col_excel:
+                if st.button("📊 Gerar Excel"):
+                    arquivo_excel = exportar_para_excel(df, data_selecionada)
+                    st.success("✅ Excel gerado com sucesso.")
+                    with open(arquivo_excel, "rb") as f:
+                        st.download_button("⬇️ Baixar Excel", f, file_name=arquivo_excel, mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                    os.remove(arquivo_excel)
+            with col_pdf:
+                if st.button("📄 Gerar PDF"):
+                    arquivo_pdf = gerar_pdf(df, data_selecionada)
+                    st.success("✅ PDF gerado com sucesso.")
+                    with open(arquivo_pdf, "rb") as f:
+                        st.download_button("⬇️ Baixar PDF", f, file_name=arquivo_pdf, mime="application/pdf")
+                    os.remove(arquivo_pdf)
+    else:
+        st.warning("Nenhum dado encontrado para a data selecionada.")
 
     #pagina Agente IA
 
@@ -1124,7 +1150,7 @@ def paginaagenteia():
         </style>
         """, unsafe_allow_html=True)
 
-    st.header("💬 Conversa com Atos")
+    st.header("💬 Conversando com Theo")
 
     # Inicialização do histórico
     if 'historico' not in st.session_state:
